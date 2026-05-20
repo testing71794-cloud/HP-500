@@ -121,10 +121,18 @@ def main() -> int:
     ap.add_argument(
         "--folder",
         default="",
-        help="ATP subfolder name (e.g. Collage). Default: all under ATP TestCase Flows",
+        help="ATP subfolder name (e.g. signup-login or legacy SignUp_Login). Default: all under ATP TestCase Flows",
     )
     args = ap.parse_args()
-    root = ATP_ROOT / args.folder if args.folder else ATP_ROOT
+    folder = args.folder
+    if folder:
+        _scripts = REPO / "scripts"
+        if str(_scripts) not in sys.path:
+            sys.path.insert(0, str(_scripts))
+        from atp_folder_resolve import resolve_atp_subfolder
+
+        folder = resolve_atp_subfolder(folder, REPO)
+    root = ATP_ROOT / folder if folder else ATP_ROOT
     if not root.is_dir():
         print(f"ERROR: not a directory: {root}", file=sys.stderr)
         return 2

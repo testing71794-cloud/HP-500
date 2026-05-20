@@ -7,9 +7,22 @@ param(
     [string]$AppId = "",
     [string]$ClearState = "true",
     [string]$MaestroCmd = "",
-    # Optional: run only this child folder under "ATP TestCase Flows" (e.g. Camera, SignUp_Login). Empty = all folders.
+    # Optional: Jenkins legacy or HP500 folder (e.g. SignUp_Login, signup-login). Empty = all folders.
     [string]$AtpSubfolder = ""
 )
+
+function Resolve-AtpSubfolder {
+    param(
+        [string]$RepoRoot,
+        [string]$Requested
+    )
+    if ([string]::IsNullOrWhiteSpace($Requested)) { return "" }
+    $resolver = Join-Path $RepoRoot "scripts\atp_folder_resolve.py"
+    if (-not (Test-Path -LiteralPath $resolver)) { return $Requested.Trim() }
+    $out = & python $resolver $Requested.Trim() $RepoRoot 2>$null
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($out)) { return $Requested.Trim() }
+    return $out.Trim()
+}
 
 $ErrorActionPreference = "Stop"
 
@@ -218,7 +231,11 @@ function Merge-AtpSuiteLabelsJson {
 
 $RepoRoot = [System.IO.Path]::GetFullPath($RepoRoot)
 $atpRoot = Join-Path $RepoRoot "ATP TestCase Flows"
-$subTrim = if ($null -eq $AtpSubfolder) { "" } else { $AtpSubfolder.Trim() }
+$subRequested = if ($null -eq $AtpSubfolder) { "" } else { $AtpSubfolder.Trim() }
+$subTrim = Resolve-AtpSubfolder -RepoRoot $RepoRoot -Requested $subRequested
+if ($subTrim -and $subRequested -and ($subTrim -ne $subRequested)) {
+    Write-Host "[ATP] folder alias: $subRequested -> $subTrim"
+}
 $singleFolderMode = -not [string]::IsNullOrWhiteSpace($subTrim)
 
 Write-Section $(if ($singleFolderMode) { "ATP TestCase Flows - $subTrim" } else { "ATP TestCase Flows (all folders)" })
