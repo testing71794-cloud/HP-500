@@ -1,0 +1,487 @@
+# =============================================================================
+# HP 500 Panorama (Sprocket Panorama) - Signup module Maestro flows
+# App ID: com.hp.impulse.panorama
+# ATP source: HP 500 (Sprocket Panorama) ATP (4).xlsx (map IDs below to your sheet)
+# -----------------------------------------------------------------------------
+# Test data (replace for CI; keep signup email unique per run if backend enforces uniqueness)
+#   SIGNUP_FULL_NAME / SIGNUP_EMAIL / SIGNUP_PASSWORD : positive path defaults
+# -----------------------------------------------------------------------------
+appId: com.hp.impulse.panorama
+name: "HP Panorama - Signup module (ATP-mapped suite)"
+tags:
+  - hp-panorama
+  - signup
+  - regression
+---
+# -----------------------------------------------------------------------------
+# ATP ID: HP-PAN-ATP-SUP-UI-001
+# Title: Sign up screen — primary UI, fields, and legal copy are visible
+# -----------------------------------------------------------------------------
+- runFlow:
+    label: "HP-PAN-ATP-SUP-UI-001 | Sign up screen UI"
+    commands:
+      - launchApp:
+          appId: com.hp.impulse.panorama
+          clearState: true
+      - waitForAnimationToEnd
+      - tapOn:
+          text: "Get Started"
+          optional: true
+      - extendedWaitUntil:
+          visible: "Sign up"
+          timeout: 25000
+      - assertVisible: "Let creativity roll!"
+      - assertVisible: "Create up to 9"
+      - assertVisible: "Full name"
+      - assertVisible: "Email"
+      - assertVisible: "Password"
+      - assertVisible: "By signing up you agree to our Terms & Conditions and Privacy Policy"
+      - assertVisible: "Terms & Conditions"
+      - assertVisible: "Privacy Policy"
+      - scrollUntilVisible:
+          element:
+            text: "Sign up"
+            below: "By signing up you agree to our Terms & Conditions and Privacy Policy"
+          direction: DOWN
+          timeout: 20000
+      - assertVisible: "I already have an account"
+      - assertVisible: "I'll do it later"
+
+# -----------------------------------------------------------------------------
+# ATP ID: HP-PAN-ATP-SUP-POS-001
+# Title: Sign up — successful registration with valid data
+# -----------------------------------------------------------------------------
+- runFlow:
+    label: "HP-PAN-ATP-SUP-POS-001 | Valid signup"
+    commands:
+      - launchApp:
+          appId: com.hp.impulse.panorama
+          clearState: true
+      - waitForAnimationToEnd
+      - tapOn:
+          text: "Get Started"
+          optional: true
+      - extendedWaitUntil:
+          visible: "Sign up"
+          timeout: 25000
+      - tapOn: "Full name"
+      - inputText: "HP Panorama Maestro QA"
+      - tapOn: "Email"
+      - inputText: "hp500.maestro.signup.atp.pos001.20260505@yopmail.com"
+      - tapOn: "Password"
+      - inputText: "HP_Panorama_Signup_Valid_01!"
+      - hideKeyboard
+      - scrollUntilVisible:
+          element:
+            text: "Sign up"
+            below: "By signing up you agree to our Terms & Conditions and Privacy Policy"
+          direction: DOWN
+          timeout: 20000
+      - tapOn:
+          text: "Sign up"
+          below: "By signing up you agree to our Terms & Conditions and Privacy Policy"
+      - waitForAnimationToEnd
+      - extendedWaitUntil:
+          notVisible: "Let creativity roll!"
+          timeout: 90000
+      - assertVisible:
+          text: ".*(?i)(welcome|verify|confirm|check|email|success|continue|next|connect|setup).*"
+          optional: true
+
+# -----------------------------------------------------------------------------
+# ATP ID: HP-PAN-ATP-SUP-NEG-001
+# Title: Sign up — empty Full name, Email, and Password are rejected
+# -----------------------------------------------------------------------------
+- runFlow:
+    label: "HP-PAN-ATP-SUP-NEG-001 | Empty all fields"
+    commands:
+      - launchApp:
+          appId: com.hp.impulse.panorama
+          clearState: true
+      - waitForAnimationToEnd
+      - tapOn:
+          text: "Get Started"
+          optional: true
+      - extendedWaitUntil:
+          visible: "Sign up"
+          timeout: 25000
+      - scrollUntilVisible:
+          element:
+            text: "Sign up"
+            below: "By signing up you agree to our Terms & Conditions and Privacy Policy"
+          direction: DOWN
+          timeout: 20000
+      - tapOn:
+          text: "Sign up"
+          below: "By signing up you agree to our Terms & Conditions and Privacy Policy"
+      - scroll
+      - assertVisible:
+          text: ".*(?i)(required|enter|empty|invalid|fix|field|problem|issue).*"
+      - assertVisible: "Full name"
+
+# -----------------------------------------------------------------------------
+# ATP ID: HP-PAN-ATP-SUP-NEG-002
+# Title: Sign up — invalid email format is rejected before account creation
+# -----------------------------------------------------------------------------
+- runFlow:
+    label: "HP-PAN-ATP-SUP-NEG-002 | Invalid email format"
+    commands:
+      - launchApp:
+          appId: com.hp.impulse.panorama
+          clearState: true
+      - waitForAnimationToEnd
+      - tapOn:
+          text: "Get Started"
+          optional: true
+      - extendedWaitUntil:
+          visible: "Sign up"
+          timeout: 25000
+      - tapOn: "Full name"
+      - inputText: "Invalid Email User"
+      - tapOn: "Email"
+      - inputText: "not-an-email"
+      - tapOn: "Password"
+      - inputText: "HP_Panorama_Signup_Valid_01!"
+      - hideKeyboard
+      - scrollUntilVisible:
+          element:
+            text: "Sign up"
+            below: "By signing up you agree to our Terms & Conditions and Privacy Policy"
+          direction: DOWN
+          timeout: 20000
+      - tapOn:
+          text: "Sign up"
+          below: "By signing up you agree to our Terms & Conditions and Privacy Policy"
+      - scroll
+      - assertVisible:
+          text: ".*(?i)(email|format|valid|address|invalid|correct).*"
+      - assertVisible: "Sign up"
+
+# -----------------------------------------------------------------------------
+# ATP ID: HP-PAN-ATP-SUP-NEG-003
+# Title: Sign up — weak / short password is rejected
+# -----------------------------------------------------------------------------
+- runFlow:
+    label: "HP-PAN-ATP-SUP-NEG-003 | Weak password"
+    commands:
+      - launchApp:
+          appId: com.hp.impulse.panorama
+          clearState: true
+      - waitForAnimationToEnd
+      - tapOn:
+          text: "Get Started"
+          optional: true
+      - extendedWaitUntil:
+          visible: "Sign up"
+          timeout: 25000
+      - tapOn: "Full name"
+      - inputText: "Weak Password User"
+      - tapOn: "Email"
+      - inputText: "hp500.maestro.signup.weakpass.20260505@yopmail.com"
+      - tapOn: "Password"
+      - inputText: "12345"
+      - hideKeyboard
+      - scrollUntilVisible:
+          element:
+            text: "Sign up"
+            below: "By signing up you agree to our Terms & Conditions and Privacy Policy"
+          direction: DOWN
+          timeout: 20000
+      - tapOn:
+          text: "Sign up"
+          below: "By signing up you agree to our Terms & Conditions and Privacy Policy"
+      - scroll
+      - assertVisible:
+          text: ".*(?i)(password|characters|long|short|strong|weak|complex|rule|8).*"
+      - assertVisible: "Password"
+
+# -----------------------------------------------------------------------------
+# ATP ID: HP-PAN-ATP-SUP-NEG-004
+# Title: Sign up — empty email only is rejected
+# -----------------------------------------------------------------------------
+- runFlow:
+    label: "HP-PAN-ATP-SUP-NEG-004 | Empty email"
+    commands:
+      - launchApp:
+          appId: com.hp.impulse.panorama
+          clearState: true
+      - waitForAnimationToEnd
+      - tapOn:
+          text: "Get Started"
+          optional: true
+      - extendedWaitUntil:
+          visible: "Sign up"
+          timeout: 25000
+      - tapOn: "Full name"
+      - inputText: "Missing Email User"
+      - tapOn: "Password"
+      - inputText: "HP_Panorama_Signup_Valid_01!"
+      - hideKeyboard
+      - scrollUntilVisible:
+          element:
+            text: "Sign up"
+            below: "By signing up you agree to our Terms & Conditions and Privacy Policy"
+          direction: DOWN
+          timeout: 20000
+      - tapOn:
+          text: "Sign up"
+          below: "By signing up you agree to our Terms & Conditions and Privacy Policy"
+      - scroll
+      - assertVisible:
+          text: ".*(?i)(email|required|enter|invalid|field|address).*"
+      - assertVisible: "Email"
+
+# -----------------------------------------------------------------------------
+# ATP ID: HP-PAN-ATP-SUP-NEG-005
+# Title: Sign up — empty password only is rejected
+# -----------------------------------------------------------------------------
+- runFlow:
+    label: "HP-PAN-ATP-SUP-NEG-005 | Empty password"
+    commands:
+      - launchApp:
+          appId: com.hp.impulse.panorama
+          clearState: true
+      - waitForAnimationToEnd
+      - tapOn:
+          text: "Get Started"
+          optional: true
+      - extendedWaitUntil:
+          visible: "Sign up"
+          timeout: 25000
+      - tapOn: "Full name"
+      - inputText: "Missing Password User"
+      - tapOn: "Email"
+      - inputText: "hp500.maestro.signup.nopass.20260505@yopmail.com"
+      - hideKeyboard
+      - scrollUntilVisible:
+          element:
+            text: "Sign up"
+            below: "By signing up you agree to our Terms & Conditions and Privacy Policy"
+          direction: DOWN
+          timeout: 20000
+      - tapOn:
+          text: "Sign up"
+          below: "By signing up you agree to our Terms & Conditions and Privacy Policy"
+      - scroll
+      - assertVisible:
+          text: ".*(?i)(password|required|enter|invalid|field).*"
+      - assertVisible: "Password"
+
+# -----------------------------------------------------------------------------
+# ATP ID: HP-PAN-ATP-SUP-EDGE-001
+# Title: Sign up — very long full name entry does not crash the client
+# -----------------------------------------------------------------------------
+- runFlow:
+    label: "HP-PAN-ATP-SUP-EDGE-001 | Long full name"
+    commands:
+      - launchApp:
+          appId: com.hp.impulse.panorama
+          clearState: true
+      - waitForAnimationToEnd
+      - tapOn:
+          text: "Get Started"
+          optional: true
+      - extendedWaitUntil:
+          visible: "Sign up"
+          timeout: 25000
+      - tapOn: "Full name"
+      - inputText: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      - tapOn: "Email"
+      - inputText: "hp500.maestro.signup.longname.20260505@yopmail.com"
+      - tapOn: "Password"
+      - inputText: "HP_Panorama_Signup_Valid_01!"
+      - hideKeyboard
+      - scrollUntilVisible:
+          element:
+            text: "Sign up"
+            below: "By signing up you agree to our Terms & Conditions and Privacy Policy"
+          direction: DOWN
+          timeout: 20000
+      - tapOn:
+          text: "Sign up"
+          below: "By signing up you agree to our Terms & Conditions and Privacy Policy"
+      - waitForAnimationToEnd
+      - assertVisible: "Sign up"
+
+# -----------------------------------------------------------------------------
+# ATP ID: HP-PAN-ATP-SUP-EDGE-002
+# Title: Sign up — special characters in full name are handled safely
+# -----------------------------------------------------------------------------
+- runFlow:
+    label: "HP-PAN-ATP-SUP-EDGE-002 | Special characters in name"
+    commands:
+      - launchApp:
+          appId: com.hp.impulse.panorama
+          clearState: true
+      - waitForAnimationToEnd
+      - tapOn:
+          text: "Get Started"
+          optional: true
+      - extendedWaitUntil:
+          visible: "Sign up"
+          timeout: 25000
+      - tapOn: "Full name"
+      - inputText: "O'Brien <QA> & Co."
+      - tapOn: "Email"
+      - inputText: "hp500.maestro.signup.specialname.20260505@yopmail.com"
+      - tapOn: "Password"
+      - inputText: "HP_Panorama_Signup_Valid_01!"
+      - hideKeyboard
+      - scrollUntilVisible:
+          element:
+            text: "Sign up"
+            below: "By signing up you agree to our Terms & Conditions and Privacy Policy"
+          direction: DOWN
+          timeout: 20000
+      - tapOn:
+          text: "Sign up"
+          below: "By signing up you agree to our Terms & Conditions and Privacy Policy"
+      - waitForAnimationToEnd
+      - assertVisible: "Sign up"
+
+# -----------------------------------------------------------------------------
+# ATP ID: HP-PAN-ATP-SUP-NAV-001
+# Title: Sign up — navigate to Login and return with system back
+# -----------------------------------------------------------------------------
+- runFlow:
+    label: "HP-PAN-ATP-SUP-NAV-001 | Login entry and back"
+    commands:
+      - launchApp:
+          appId: com.hp.impulse.panorama
+          clearState: true
+      - waitForAnimationToEnd
+      - tapOn:
+          text: "Get Started"
+          optional: true
+      - extendedWaitUntil:
+          visible: "Sign up"
+          timeout: 25000
+      - tapOn: "I already have an account"
+      - extendedWaitUntil:
+          visible: "Login"
+          timeout: 20000
+      - back
+      - extendedWaitUntil:
+          visible: "Sign up"
+          timeout: 15000
+      - assertVisible: "Full name"
+
+# -----------------------------------------------------------------------------
+# ATP ID: HP-PAN-ATP-SUP-NAV-002
+# Title: Sign up — Terms & Conditions link opens policy content
+# -----------------------------------------------------------------------------
+- runFlow:
+    label: "HP-PAN-ATP-SUP-NAV-002 | Terms & Conditions"
+    commands:
+      - launchApp:
+          appId: com.hp.impulse.panorama
+          clearState: true
+      - waitForAnimationToEnd
+      - tapOn:
+          text: "Get Started"
+          optional: true
+      - extendedWaitUntil:
+          visible: "Sign up"
+          timeout: 25000
+      - tapOn: "Terms & Conditions"
+      - waitForAnimationToEnd
+      - extendedWaitUntil:
+          visible: ".*(?i)(terms|conditions|policy|hp|privacy|agreement).*"
+          timeout: 20000
+      - back
+      - extendedWaitUntil:
+          visible: "Sign up"
+          timeout: 15000
+
+# -----------------------------------------------------------------------------
+# ATP ID: HP-PAN-ATP-SUP-NAV-003
+# Title: Sign up — Privacy Policy link opens policy content
+# -----------------------------------------------------------------------------
+- runFlow:
+    label: "HP-PAN-ATP-SUP-NAV-003 | Privacy Policy"
+    commands:
+      - launchApp:
+          appId: com.hp.impulse.panorama
+          clearState: true
+      - waitForAnimationToEnd
+      - tapOn:
+          text: "Get Started"
+          optional: true
+      - extendedWaitUntil:
+          visible: "Sign up"
+          timeout: 25000
+      - tapOn: "Privacy Policy"
+      - waitForAnimationToEnd
+      - extendedWaitUntil:
+          visible: ".*(?i)(privacy|policy|hp|data|personal).*"
+          timeout: 20000
+      - back
+      - extendedWaitUntil:
+          visible: "Sign up"
+          timeout: 15000
+
+# -----------------------------------------------------------------------------
+# ATP ID: HP-PAN-ATP-SUP-NAV-004
+# Title: Sign up — Skip / defer account creation via I'll do it later
+# -----------------------------------------------------------------------------
+- runFlow:
+    label: "HP-PAN-ATP-SUP-NAV-004 | I'll do it later"
+    commands:
+      - launchApp:
+          appId: com.hp.impulse.panorama
+          clearState: true
+      - waitForAnimationToEnd
+      - tapOn:
+          text: "Get Started"
+          optional: true
+      - extendedWaitUntil:
+          visible: "Sign up"
+          timeout: 25000
+      - scrollUntilVisible:
+          element: "I'll do it later"
+          direction: DOWN
+          timeout: 20000
+      - tapOn: "I'll do it later"
+      - waitForAnimationToEnd
+      - extendedWaitUntil:
+          notVisible: "Full name"
+          timeout: 25000
+      - assertNotVisible: "Full name"
+
+# -----------------------------------------------------------------------------
+# ATP ID: HP-PAN-ATP-SUP-NEG-006
+# Title: Sign up — whitespace-only full name is rejected
+# -----------------------------------------------------------------------------
+- runFlow:
+    label: "HP-PAN-ATP-SUP-NEG-006 | Whitespace-only name"
+    commands:
+      - launchApp:
+          appId: com.hp.impulse.panorama
+          clearState: true
+      - waitForAnimationToEnd
+      - tapOn:
+          text: "Get Started"
+          optional: true
+      - extendedWaitUntil:
+          visible: "Sign up"
+          timeout: 25000
+      - tapOn: "Full name"
+      - inputText: "      "
+      - tapOn: "Email"
+      - inputText: "hp500.maestro.signup.whitespacename.20260505@yopmail.com"
+      - tapOn: "Password"
+      - inputText: "HP_Panorama_Signup_Valid_01!"
+      - hideKeyboard
+      - scrollUntilVisible:
+          element:
+            text: "Sign up"
+            below: "By signing up you agree to our Terms & Conditions and Privacy Policy"
+          direction: DOWN
+          timeout: 20000
+      - tapOn:
+          text: "Sign up"
+          below: "By signing up you agree to our Terms & Conditions and Privacy Policy"
+      - scroll
+      - assertVisible:
+          text: ".*(?i)(name|required|enter|invalid|field).*"
+      - assertVisible: "Full name"

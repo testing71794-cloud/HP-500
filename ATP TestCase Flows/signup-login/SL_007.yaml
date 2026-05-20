@@ -1,0 +1,37 @@
+# ATP ID: SL_007
+# Description: Email Warning Message Sign In
+# Excel SL row: 7
+# sl_test_number: 6
+
+appId: com.hp.impulse.panorama
+name: "SL_007 - Email Warning Message Sign In"
+tags:
+  - hp-panorama
+  - atp
+  - SL_007
+  - test-6
+  - login
+  - negative
+---
+- launchApp:
+    appId: com.hp.impulse.panorama
+    clearState: true
+- runFlow: subflows/reach_login_from_cold_start.yaml
+- tapOn: "Email"
+- inputText: "T"
+- tapOn: "Password"
+- inputText: "T"
+- hideKeyboard
+- tapOn:
+    text: "Login"
+    below: "Forgot password"
+- waitForAnimationToEnd
+- assertVisible:
+    text: "Please enter your email address"
+- tapOn:
+    text: "OK"
+    optional: true
+- tapOn:
+    text: "Ok"
+    optional: true
+- assertVisible: "Login"

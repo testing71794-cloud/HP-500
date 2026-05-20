@@ -1,0 +1,8 @@
+d:\Projects-Meastro\sharedall (excel fail-true sync)\ATP TestCase Flows\Camera\TC_CA_01_Enter camera mode.yaml
+d:\Projects-Meastro\sharedall (excel fail-true sync)\ATP TestCase Flows\Camera\TC_CA_02_Capture and print photo.yaml
+d:\Projects-Meastro\sharedall (excel fail-true sync)\ATP TestCase Flows\Camera\TC_CA_03_Capture selfie photo.yaml
+d:\Projects-Meastro\sharedall (excel fail-true sync)\ATP TestCase Flows\Camera\TC_CA_04_Capture photo with flash.yaml
+d:\Projects-Meastro\sharedall (excel fail-true sync)\ATP TestCase Flows\Camera\TC_CA_05_Capture photo with filter.yaml
+d:\Projects-Meastro\sharedall (excel fail-true sync)\ATP TestCase Flows\Camera\TC_CA_06_Close camera view.yaml
+d:\Projects-Meastro\sharedall (excel fail-true sync)\ATP TestCase Flows\Camera\TC_CA_07_AR scan from camera.yaml
+d:\Projects-Meastro\sharedall (excel fail-true sync)\ATP TestCase Flows\Camera\TC_CA_E02_Rapid photo capture.yaml

@@ -1,0 +1,389 @@
+# =============================================================================
+# HP 500 Panorama (Sprocket Panorama) - Login module Maestro flows
+# App ID: com.hp.impulse.panorama
+# ATP source: HP 500 (Sprocket Panorama) ATP (4).xlsx (map IDs below to your sheet)
+# -----------------------------------------------------------------------------
+# Test data (replace with environment-backed accounts for CI)
+#   VALID_LOGIN_EMAIL / VALID_LOGIN_PASSWORD : must authenticate successfully
+# -----------------------------------------------------------------------------
+appId: com.hp.impulse.panorama
+name: "HP Panorama - Login module (ATP-mapped suite)"
+tags:
+  - hp-panorama
+  - login
+  - regression
+---
+# -----------------------------------------------------------------------------
+# ATP ID: HP-PAN-ATP-LGN-UI-001
+# Title: Login screen — primary UI and copy are visible after navigation
+# -----------------------------------------------------------------------------
+- runFlow:
+    label: "HP-PAN-ATP-LGN-UI-001 | Login screen UI"
+    commands:
+      - launchApp:
+          appId: com.hp.impulse.panorama
+          clearState: true
+      - waitForAnimationToEnd
+      - tapOn:
+          text: "Get Started"
+          optional: true
+      - extendedWaitUntil:
+          visible: "Sign up"
+          timeout: 25000
+      - assertVisible: "Let creativity roll!"
+      - tapOn: "I already have an account"
+      - extendedWaitUntil:
+          visible: "Login"
+          timeout: 20000
+      - assertVisible: "Email"
+      - assertVisible: "Password"
+      - assertVisible: "Forgot password"
+      - assertVisible:
+          text: "Login"
+          below: "Forgot password"
+
+# -----------------------------------------------------------------------------
+# ATP ID: HP-PAN-ATP-LGN-NAV-001
+# Title: Login — back navigation returns to Sign up
+# -----------------------------------------------------------------------------
+- runFlow:
+    label: "HP-PAN-ATP-LGN-NAV-001 | Back to Sign up"
+    commands:
+      - launchApp:
+          appId: com.hp.impulse.panorama
+          clearState: true
+      - waitForAnimationToEnd
+      - tapOn:
+          text: "Get Started"
+          optional: true
+      - extendedWaitUntil:
+          visible: "Sign up"
+          timeout: 25000
+      - tapOn: "I already have an account"
+      - extendedWaitUntil:
+          visible: "Login"
+          timeout: 20000
+      - back
+      - extendedWaitUntil:
+          visible: "Sign up"
+          timeout: 15000
+      - assertVisible: "Full name"
+      - assertVisible: "Email"
+      - assertVisible: "Password"
+
+# -----------------------------------------------------------------------------
+# ATP ID: HP-PAN-ATP-LGN-POS-001
+# Title: Login — successful authentication with valid credentials
+# -----------------------------------------------------------------------------
+- runFlow:
+    label: "HP-PAN-ATP-LGN-POS-001 | Valid credentials"
+    commands:
+      - launchApp:
+          appId: com.hp.impulse.panorama
+          clearState: true
+      - waitForAnimationToEnd
+      - tapOn:
+          text: "Get Started"
+          optional: true
+      - extendedWaitUntil:
+          visible: "Sign up"
+          timeout: 25000
+      - tapOn: "I already have an account"
+      - extendedWaitUntil:
+          visible: "Login"
+          timeout: 20000
+      - tapOn: "Email"
+      - inputText: "qa.panorama.login.valid@hpqa.test"
+      - tapOn: "Password"
+      - inputText: "HP_Panorama_QA_Valid_01!"
+      - hideKeyboard
+      - tapOn:
+          text: "Login"
+          below: "Forgot password"
+      - extendedWaitUntil:
+          notVisible: "Forgot password"
+          timeout: 45000
+      - waitForAnimationToEnd
+      - assertNotVisible: "Forgot password"
+
+# -----------------------------------------------------------------------------
+# ATP ID: HP-PAN-ATP-LGN-NEG-001
+# Title: Login — empty Email and Password show validation / blocked submit
+# -----------------------------------------------------------------------------
+- runFlow:
+    label: "HP-PAN-ATP-LGN-NEG-001 | Empty fields"
+    commands:
+      - launchApp:
+          appId: com.hp.impulse.panorama
+          clearState: true
+      - waitForAnimationToEnd
+      - tapOn:
+          text: "Get Started"
+          optional: true
+      - extendedWaitUntil:
+          visible: "Sign up"
+          timeout: 25000
+      - tapOn: "I already have an account"
+      - extendedWaitUntil:
+          visible: "Login"
+          timeout: 20000
+      - tapOn:
+          text: "Login"
+          below: "Forgot password"
+      - scroll
+      - assertVisible:
+          text: ".*(?i)(required|enter|empty|invalid|fix|field|problem|issue).*"
+      - assertVisible: "Forgot password"
+
+# -----------------------------------------------------------------------------
+# ATP ID: HP-PAN-ATP-LGN-NEG-002
+# Title: Login — invalid email format is rejected
+# -----------------------------------------------------------------------------
+- runFlow:
+    label: "HP-PAN-ATP-LGN-NEG-002 | Invalid email format"
+    commands:
+      - launchApp:
+          appId: com.hp.impulse.panorama
+          clearState: true
+      - waitForAnimationToEnd
+      - tapOn:
+          text: "Get Started"
+          optional: true
+      - extendedWaitUntil:
+          visible: "Sign up"
+          timeout: 25000
+      - tapOn: "I already have an account"
+      - extendedWaitUntil:
+          visible: "Login"
+          timeout: 20000
+      - tapOn: "Email"
+      - inputText: "not-an-email"
+      - tapOn: "Password"
+      - inputText: "SomePassword123!"
+      - hideKeyboard
+      - tapOn:
+          text: "Login"
+          below: "Forgot password"
+      - assertVisible:
+          text: ".*(?i)(email|format|valid|address|invalid|correct).*"
+      - assertVisible: "Login"
+
+# -----------------------------------------------------------------------------
+# ATP ID: HP-PAN-ATP-LGN-NEG-003
+# Title: Login — incorrect password for valid-format account stays on Login
+# -----------------------------------------------------------------------------
+- runFlow:
+    label: "HP-PAN-ATP-LGN-NEG-003 | Wrong password"
+    commands:
+      - launchApp:
+          appId: com.hp.impulse.panorama
+          clearState: true
+      - waitForAnimationToEnd
+      - tapOn:
+          text: "Get Started"
+          optional: true
+      - extendedWaitUntil:
+          visible: "Sign up"
+          timeout: 25000
+      - tapOn: "I already have an account"
+      - extendedWaitUntil:
+          visible: "Login"
+          timeout: 20000
+      - tapOn: "Email"
+      - inputText: "qa.panorama.login.valid@hpqa.test"
+      - tapOn: "Password"
+      - inputText: "DefinitelyWrongPassword!999"
+      - hideKeyboard
+      - tapOn:
+          text: "Login"
+          below: "Forgot password"
+      - waitForAnimationToEnd
+      - extendedWaitUntil:
+          visible: "Forgot password"
+          timeout: 20000
+      - assertVisible: "Login"
+
+# -----------------------------------------------------------------------------
+# ATP ID: HP-PAN-ATP-LGN-NEG-004
+# Title: Login — unknown / non-registered email cannot sign in
+# -----------------------------------------------------------------------------
+- runFlow:
+    label: "HP-PAN-ATP-LGN-NEG-004 | Unknown account"
+    commands:
+      - launchApp:
+          appId: com.hp.impulse.panorama
+          clearState: true
+      - waitForAnimationToEnd
+      - tapOn:
+          text: "Get Started"
+          optional: true
+      - extendedWaitUntil:
+          visible: "Sign up"
+          timeout: 25000
+      - tapOn: "I already have an account"
+      - extendedWaitUntil:
+          visible: "Login"
+          timeout: 20000
+      - tapOn: "Email"
+      - inputText: "hp500.panorama.nonexistent.user@hpqa.test"
+      - tapOn: "Password"
+      - inputText: "HP_Panorama_QA_Valid_01!"
+      - hideKeyboard
+      - tapOn:
+          text: "Login"
+          below: "Forgot password"
+      - waitForAnimationToEnd
+      - extendedWaitUntil:
+          visible: "Forgot password"
+          timeout: 20000
+      - assertVisible: "Login"
+
+# -----------------------------------------------------------------------------
+# ATP ID: HP-PAN-ATP-LGN-EDGE-001
+# Title: Login — special characters in password do not crash the client
+# -----------------------------------------------------------------------------
+- runFlow:
+    label: "HP-PAN-ATP-LGN-EDGE-001 | Special characters in password"
+    commands:
+      - launchApp:
+          appId: com.hp.impulse.panorama
+          clearState: true
+      - waitForAnimationToEnd
+      - tapOn:
+          text: "Get Started"
+          optional: true
+      - extendedWaitUntil:
+          visible: "Sign up"
+          timeout: 25000
+      - tapOn: "I already have an account"
+      - extendedWaitUntil:
+          visible: "Login"
+          timeout: 20000
+      - tapOn: "Email"
+      - inputText: "qa.panorama.login.valid@hpqa.test"
+      - tapOn: "Password"
+      - inputText: "P@ss_!2026#HP<>\"'&%"
+      - hideKeyboard
+      - tapOn:
+          text: "Login"
+          below: "Forgot password"
+      - waitForAnimationToEnd
+      - assertVisible: "Login"
+
+# -----------------------------------------------------------------------------
+# ATP ID: HP-PAN-ATP-LGN-EDGE-002
+# Title: Login — password field accepts input and remains on Login after dismiss keyboard
+# -----------------------------------------------------------------------------
+- runFlow:
+    label: "HP-PAN-ATP-LGN-EDGE-002 | Password entry stability"
+    commands:
+      - launchApp:
+          appId: com.hp.impulse.panorama
+          clearState: true
+      - waitForAnimationToEnd
+      - tapOn:
+          text: "Get Started"
+          optional: true
+      - extendedWaitUntil:
+          visible: "Sign up"
+          timeout: 25000
+      - tapOn: "I already have an account"
+      - extendedWaitUntil:
+          visible: "Login"
+          timeout: 20000
+      - tapOn: "Password"
+      - inputText: "ToggleCheck_123!"
+      - hideKeyboard
+      - assertVisible: "Login"
+
+# -----------------------------------------------------------------------------
+# ATP ID: HP-PAN-ATP-LGN-NAV-002
+# Title: Login — Forgot password entry point opens recovery experience
+# -----------------------------------------------------------------------------
+- runFlow:
+    label: "HP-PAN-ATP-LGN-NAV-002 | Forgot password"
+    commands:
+      - launchApp:
+          appId: com.hp.impulse.panorama
+          clearState: true
+      - waitForAnimationToEnd
+      - tapOn:
+          text: "Get Started"
+          optional: true
+      - extendedWaitUntil:
+          visible: "Sign up"
+          timeout: 25000
+      - tapOn: "I already have an account"
+      - extendedWaitUntil:
+          visible: "Login"
+          timeout: 20000
+      - tapOn: "Forgot password"
+      - waitForAnimationToEnd
+      - extendedWaitUntil:
+          visible: ".*(?i)(reset|recover|forgot|email|help|hp|account).*"
+          timeout: 20000
+
+# -----------------------------------------------------------------------------
+# ATP ID: HP-PAN-ATP-LGN-NEG-005
+# Title: Login — whitespace-only password is rejected
+# -----------------------------------------------------------------------------
+- runFlow:
+    label: "HP-PAN-ATP-LGN-NEG-005 | Whitespace-only password"
+    commands:
+      - launchApp:
+          appId: com.hp.impulse.panorama
+          clearState: true
+      - waitForAnimationToEnd
+      - tapOn:
+          text: "Get Started"
+          optional: true
+      - extendedWaitUntil:
+          visible: "Sign up"
+          timeout: 25000
+      - tapOn: "I already have an account"
+      - extendedWaitUntil:
+          visible: "Login"
+          timeout: 20000
+      - tapOn: "Email"
+      - inputText: "qa.panorama.login.valid@hpqa.test"
+      - tapOn: "Password"
+      - inputText: "      "
+      - hideKeyboard
+      - tapOn:
+          text: "Login"
+          below: "Forgot password"
+      - scroll
+      - assertVisible:
+          text: ".*(?i)(password|required|enter|invalid|problem|issue).*"
+      - assertVisible: "Login"
+
+# -----------------------------------------------------------------------------
+# ATP ID: HP-PAN-ATP-LGN-EDGE-003
+# Title: Login — very long password input does not crash the app
+# -----------------------------------------------------------------------------
+- runFlow:
+    label: "HP-PAN-ATP-LGN-EDGE-003 | Long password string"
+    commands:
+      - launchApp:
+          appId: com.hp.impulse.panorama
+          clearState: true
+      - waitForAnimationToEnd
+      - tapOn:
+          text: "Get Started"
+          optional: true
+      - extendedWaitUntil:
+          visible: "Sign up"
+          timeout: 25000
+      - tapOn: "I already have an account"
+      - extendedWaitUntil:
+          visible: "Login"
+          timeout: 20000
+      - tapOn: "Email"
+      - inputText: "qa.panorama.login.valid@hpqa.test"
+      - tapOn: "Password"
+      - inputText: "A1!AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      - hideKeyboard
+      - tapOn:
+          text: "Login"
+          below: "Forgot password"
+      - assertVisible: "Login"

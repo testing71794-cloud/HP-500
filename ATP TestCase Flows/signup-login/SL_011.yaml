@@ -1,0 +1,44 @@
+# ATP ID: SL_011
+# Description: Password Warning Message Sign In
+# Excel SL row: 11
+# sl_test_number: 10
+
+appId: com.hp.impulse.panorama
+env:
+  SL_VALID_EMAIL: "qa.hp500.sl.valid@hpqa.test"
+
+name: "SL_011 - Password Warning Message Sign In"
+tags:
+  - hp-panorama
+  - atp
+  - SL_011
+  - test-10
+  - login
+  - positive
+---
+- launchApp:
+    appId: com.hp.impulse.panorama
+    clearState: true
+- runFlow: subflows/reach_login_from_cold_start.yaml
+- tapOn: "Email"
+- inputText: "${SL_VALID_EMAIL}"
+- tapOn: "Password"
+- inputText: "Testpass1"
+- hideKeyboard
+- tapOn:
+    text: "Login"
+    below: "Forgot password"
+- waitForAnimationToEnd
+- assertNotVisible:
+    text: "Please enter a valid email address"
+- assertNotVisible:
+    text: "Password must be at least 8 characters. At least one lowercase and one uppercase letter"
+- extendedWaitUntil:
+    notVisible: "Forgot password"
+    timeout: 90000
+    optional: true
+- assertVisible: "Print photos and memories"
+- assertVisible: "HP Sprocket Panorama makes preserving memories easy. You can adjust and personalize your designs into amazing prints ranging from 0.5\u201d to 9\u201d."
+- assertVisible: "By continuing, you acknowledge that this app is owned by C&A Marketing, Inc., an authorized licensee of HP, Inc. and you agree that you have read and accept the End User License Agreement and the HP Sprocket Terms of Service ."
+- assertVisible: "Get Started"
+

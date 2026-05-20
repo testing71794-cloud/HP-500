@@ -1,0 +1,38 @@
+# ATP ID: SL_002
+# Description: Email Address Warning Message Sign Up
+# Excel SL row: 2
+# sl_test_number: 1
+
+appId: com.hp.impulse.panorama
+name: "SL_002 - Email Address Warning Message Sign Up"
+tags:
+  - hp-panorama
+  - atp
+  - SL_002
+  - test-1
+  - signup
+  - negative
+---
+- launchApp:
+    appId: com.hp.impulse.panorama
+    clearState: true
+- runFlow: subflows/reach_signup_from_cold_start.yaml
+- tapOn: "Full name"
+- inputText: "QA SL002"
+- tapOn: "Email"
+- inputText: "t"
+- tapOn: "Password"
+- inputText: "t"
+- hideKeyboard
+- assertVisible: "By signing up you agree to our Terms & Conditions and"
+- assertVisible: "Privacy Policy"
+- tapOn: "Sign up"
+- assertVisible:
+    text: "Please enter a valid email address"
+- tapOn:
+    text: "OK"
+    optional: true
+- tapOn:
+    text: "Ok"
+    optional: true
+- assertVisible: "Sign up"

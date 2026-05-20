@@ -1,0 +1,45 @@
+# ATP ID: SL_005
+# Description: Password Warning Message Sign Up
+# Excel SL row: 5
+# sl_test_number: 4
+
+appId: com.hp.impulse.panorama
+env:
+  SL_VALID_EMAIL: "qa.hp500.sl.valid@hpqa.test"
+
+name: "SL_006 - Password Warning Message Sign Up"
+tags:
+  - hp-panorama
+  - atp
+  - SL_005
+  - test-4
+  - signup
+  - positive
+---
+- launchApp:
+    appId: com.hp.impulse.panorama
+    clearState: true
+- runFlow: subflows/reach_signup_from_cold_start.yaml
+- tapOn: "Full name"
+- inputText: "QA SL006"
+- tapOn: "Email"
+- inputText: "${SL_VALID_EMAIL}"
+- tapOn: "Password"
+- inputText: "Testpass1"
+- hideKeyboard
+- assertVisible: "By signing up you agree to our Terms & Conditions and"
+- assertVisible: "Privacy Policy"
+- tapOn: "Sign up"
+- waitForAnimationToEnd
+- assertNotVisible:
+    text: "Please enter a valid email address"
+- assertNotVisible:
+    text: "Password must be at least 8 characters. At least one lowercase and one uppercase letter"
+- assertVisible: "User Already Exists"
+- tapOn: "OK"
+- assertVisible: "Let creativity roll!"
+- assertVisible: "Create up to 9\u201d prints of your"
+- assertVisible: "Sign up"
+- assertVisible: "I'll do it later"
+
+

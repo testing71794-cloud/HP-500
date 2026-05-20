@@ -1,0 +1,36 @@
+# ATP ID: SL_012
+# Description: Forgot Password
+# Excel SL row: 12
+# sl_test_number: 11
+
+appId: com.hp.impulse.panorama
+env:
+  SL_VALID_EMAIL: "qa.hp500.sl.valid@hpqa.test"
+
+name: "SL_012 - Forgot Password"
+tags:
+  - hp-panorama
+  - atp
+  - SL_012
+  - test-11
+  - login
+  - negative
+---
+- launchApp:
+    appId: com.hp.impulse.panorama
+    clearState: true
+- runFlow: subflows/reach_login_from_cold_start.yaml
+- tapOn: "Forgot password"
+- waitForAnimationToEnd
+- tapOn: "Email"
+- inputText: "${SL_VALID_EMAIL}"
+- hideKeyboard
+- tapOn:
+    text: "Send"
+    optional: true
+- waitForAnimationToEnd
+- assertVisible: "Got it!"
+- assertVisible: "Check your email for a password"
+- assertVisible: "recovery link"
+- assertVisible: "Done"
+

@@ -1,0 +1,34 @@
+# ATP ID: SL_019
+# Description: Skip Login/Signup
+# Excel SL row: 19
+# sl_test_number: 18
+
+appId: com.hp.impulse.panorama
+name: "SL_019 - Skip Login/Signup"
+tags:
+  - hp-panorama
+  - atp
+  - SL_019
+  - test-18
+  - signup
+  - positive
+---
+- launchApp:
+    appId: com.hp.impulse.panorama
+    clearState: true
+- runFlow: subflows/reach_signup_from_cold_start.yaml
+- assertVisible: "By signing up you agree to our Terms & Conditions and"
+- assertVisible: "Privacy Policy"
+- scrollUntilVisible:
+    element: "I'll do it later"
+    direction: DOWN
+    timeout: 20000
+- tapOn: "I'll do it later"
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    notVisible: "Full name"
+    timeout: 25000
+- assertNotVisible: "Full name"
+- assertVisible:
+    text: ".*(?i)(welcome|next|continue|connect|skip|onboarding|power|paper|bluetooth).*"
+    optional: true

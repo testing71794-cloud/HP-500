@@ -1,0 +1,468 @@
+@echo off
+setlocal EnableExtensions EnableDelayedExpansion
+goto :script_body
+
+REM Approximate sleep without timeout.exe (Jenkins + non-TTY stdin makes timeout print
+REM "Input redirection is not supported, exiting the process immediately.").
+:sleep_seconds
+set /a "_ss=%~1"
+if !_ss! LSS 1 set "_ss=1"
+if !_ss! GTR 120 set "_ss=120"
+set /a "_ss_ping=!_ss!+1"
+ping 127.0.0.1 -n !_ss_ping! >nul
+exit /b 0
+
+REM Orchestrator may set ATP_MAESTRO_DRIVER_PORT / ATP_MAESTRO_DEBUG_OUTPUT per device (parallel isolation).
+:apply_maestro_parallel_isolation
+if defined ATP_MAESTRO_DRIVER_PORT (
+  set "MAESTRO_ARGS=--driver-host-port %ATP_MAESTRO_DRIVER_PORT% !MAESTRO_ARGS!"
+)
+if defined ATP_MAESTRO_DEBUG_OUTPUT (
+  set "MAESTRO_ARGS=!MAESTRO_ARGS! --debug-output "!ATP_MAESTRO_DEBUG_OUTPUT!""
+)
+exit /b 0
+
+REM Isolated Maestro: direct java maestro.cli.AppKt (no maestro.bat/call); env from orchestrator (LOCALAPPDATA, MAESTRO_OPTS).
+:run_maestro_isolated
+call :apply_maestro_parallel_isolation
+if defined ATP_MAESTRO_RUNTIME_ROOT (
+  echo [INFO] Maestro runtime root=!ATP_MAESTRO_RUNTIME_ROOT! LOCALAPPDATA=!LOCALAPPDATA!>> "%LOG_FILE%"
+)
+if /I "%ATP_MAESTRO_JAVA_DIRECT%"=="1" (
+  if exist "%JAVA_EXE%" if exist "%MAESTRO_APP_HOME%\lib" (
+    echo Command: "%JAVA_EXE%" %MAESTRO_OPTS% -classpath "%MAESTRO_CLASSPATH%" maestro.cli.AppKt !MAESTRO_ARGS!>> "%LOG_FILE%"
+    "%JAVA_EXE%" %MAESTRO_OPTS% -classpath "%MAESTRO_CLASSPATH%" maestro.cli.AppKt !MAESTRO_ARGS! >> "%LOG_FILE%" 2>&1
+    set "RUN_EXIT=!ERRORLEVEL!"
+    goto :run_maestro_isolated_done
+  )
+  echo [WARN] ATP_MAESTRO_JAVA_DIRECT=1 but java/lib missing; falling back to MAESTRO_BIN>> "%LOG_FILE%"
+)
+echo Command: "%MAESTRO_BIN%" !MAESTRO_ARGS!>> "%LOG_FILE%"
+"%MAESTRO_BIN%" !MAESTRO_ARGS! >> "%LOG_FILE%" 2>&1
+set "RUN_EXIT=!ERRORLEVEL!"
+:run_maestro_isolated_done
+exit /b
+
+:script_body
+REM Args:
+REM %1 = SUITE
+REM %2 = FLOW_PATH
+REM %3 = DEVICE_ID
+REM %4 = APP_ID
+REM %5 = CLEAR_STATE
+REM %6 = MAESTRO_CMD
+REM %7 = INCLUDE_TAG (optional)
+
+set "SUITE=%~1"
+set "FLOW_PATH=%~2"
+set "DEVICE_ID=%~3"
+set "APP_ID=%~4"
+set "CLEAR_STATE=%~5"
+set "MAESTRO_CMD=%~6"
+set "INCLUDE_TAG=%~7"
+
+if "%SUITE%"=="" exit /b 10
+if "%FLOW_PATH%"=="" exit /b 11
+if "%DEVICE_ID%"=="" exit /b 12
+if "%APP_ID%"=="" exit /b 13
+if "%MAESTRO_CMD%"=="" set "MAESTRO_CMD=maestro"
+if "%INCLUDE_TAG%"=="__EMPTY__" set "INCLUDE_TAG="
+if "%AUTOFILL_RESTORE_AFTER_TEST%"=="" set "AUTOFILL_RESTORE_AFTER_TEST=0"
+set "ORIG_AUTOFILL_SERVICE=unknown"
+
+set "CLASSPATH="
+set "JAVA_TOOL_OPTIONS="
+set "_JAVA_OPTIONS="
+set "JDK_JAVA_OPTIONS="
+
+set "REPO_ROOT=%~dp0.."
+for %%I in ("%REPO_ROOT%") do set "REPO_ROOT=%%~fI"
+
+call "%REPO_ROOT%\scripts\set_maestro_java.bat" "%MAESTRO_CMD%"
+if errorlevel 1 exit /b 14
+
+if exist "%MAESTRO_HOME%\maestro.bat" (
+    set "MAESTRO_BIN=%MAESTRO_HOME%\maestro.bat"
+) else if exist "%MAESTRO_HOME%\maestro.cmd" (
+    set "MAESTRO_BIN=%MAESTRO_HOME%\maestro.cmd"
+) else (
+    set "MAESTRO_BIN=%MAESTRO_CMD%"
+)
+
+REM Maestro app root (parent of bin/) — used for direct java launch (no maestro.bat wrapper).
+set "MAESTRO_APP_HOME=%MAESTRO_HOME%\.."
+for %%I in ("%MAESTRO_APP_HOME%") do set "MAESTRO_APP_HOME=%%~fI"
+set "JAVA_EXE=%JAVA_HOME%\bin\java.exe"
+set "MAESTRO_CLASSPATH=%MAESTRO_APP_HOME%\lib\*"
+
+for %%I in ("%FLOW_PATH%") do set "FLOW_NAME=%%~nI"
+
+set "REPORT_ROOT=%REPO_ROOT%\reports\%SUITE%"
+set "LOG_DIR=%REPORT_ROOT%\logs"
+set "RESULT_DIR=%REPORT_ROOT%\results"
+set "STATUS_DIR=%REPO_ROOT%\status"
+
+if not exist "%REPORT_ROOT%" mkdir "%REPORT_ROOT%"
+if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
+if not exist "%RESULT_DIR%" mkdir "%RESULT_DIR%"
+if not exist "%STATUS_DIR%" mkdir "%STATUS_DIR%"
+
+set "SAFE_FLOW=%FLOW_NAME: =_%"
+set "SAFE_DEVICE=%DEVICE_ID: =_%"
+set "LOG_FILE=%LOG_DIR%\%SAFE_FLOW%_%SAFE_DEVICE%.log"
+set "RESULT_FILE=%RESULT_DIR%\%SAFE_FLOW%_%SAFE_DEVICE%.csv"
+set "STATUS_FILE=%STATUS_DIR%\%SUITE%__%SAFE_FLOW%__%SAFE_DEVICE%.txt"
+
+(
+echo =====================================
+echo RUN ONE FLOW ON DEVICE
+echo =====================================
+echo Timestamp        : %date% %time%
+echo Suite            : %SUITE%
+echo Flow path        : %FLOW_PATH%
+echo Flow name        : %FLOW_NAME%
+echo Device           : %DEVICE_ID%
+echo App id           : %APP_ID%
+echo Clear state      : %CLEAR_STATE%
+echo Include tag      : %INCLUDE_TAG%
+echo JAVA_HOME        : %JAVA_HOME%
+echo MAESTRO_HOME     : %MAESTRO_HOME%
+echo Maestro cmd      : %MAESTRO_BIN%
+echo =====================================
+) > "%LOG_FILE%"
+
+where java >> "%LOG_FILE%" 2>&1
+java -version >> "%LOG_FILE%" 2>&1
+where adb >> "%LOG_FILE%" 2>&1
+where maestro >> "%LOG_FILE%" 2>&1
+where maestro.bat >> "%LOG_FILE%" 2>&1
+echo. >> "%LOG_FILE%"
+
+set "RUN_EXIT=0"
+set "STATUS_VALUE=PASS"
+set "REASON=OK"
+set "MAESTRO_DEVICE_RETRY_USED=0"
+set "MAESTRO_DRIVER_7001_RETRY=0"
+
+if not exist "%FLOW_PATH%" (
+    echo ERROR: Flow file not found: %FLOW_PATH%>> "%LOG_FILE%"
+    set "RUN_EXIT=20"
+    set "STATUS_VALUE=FAIL"
+    set "REASON=FLOW_FILE_NOT_FOUND"
+    goto :write_result
+)
+
+REM ---- ADB: ensure server is up (mitigates stale Jenkins adb on Windows) ----
+adb start-server >> "%LOG_FILE%" 2>&1
+
+REM ---- Wait until device reports get-state=device (Jenkins parallel / USB flake) ----
+REM Override: set ADB_DEVICE_WAIT_ATTEMPTS=30 (default 60) x ADB_DEVICE_WAIT_SECS=2 (default 2) ~= 120s max
+if not defined ADB_DEVICE_WAIT_ATTEMPTS set "ADB_DEVICE_WAIT_ATTEMPTS=60"
+if not defined ADB_DEVICE_WAIT_SECS set "ADB_DEVICE_WAIT_SECS=2"
+echo [INFO] Waiting for ADB device %DEVICE_ID% ^(up to %ADB_DEVICE_WAIT_ATTEMPTS% x %ADB_DEVICE_WAIT_SECS%s^)...>> "%LOG_FILE%"
+set /a "_ADB_W=0"
+:adb_wait_device_loop
+set /a "_ADB_W+=1"
+if !_ADB_W! GTR %ADB_DEVICE_WAIT_ATTEMPTS% (
+    echo ERROR: Device not ready after wait: %DEVICE_ID%>> "%LOG_FILE%"
+    set "RUN_EXIT=22"
+    set "STATUS_VALUE=FAIL"
+    set "REASON=DEVICE_NOT_READY"
+    goto :write_result
+)
+set "_ADB_STATE="
+for /f "delims=" %%S in ('adb -s "%DEVICE_ID%" get-state 2^>nul') do if not defined _ADB_STATE set "_ADB_STATE=%%S"
+if /I "!_ADB_STATE!"=="device" (
+    echo [INFO] Device %DEVICE_ID% online ^(get-state=device^) after !_ADB_W! attempt(s)>> "%LOG_FILE%"
+    goto :adb_wait_device_done
+)
+echo [WARN] Device %DEVICE_ID% state=!_ADB_STATE! attempt !_ADB_W!/%ADB_DEVICE_WAIT_ATTEMPTS%>> "%LOG_FILE%"
+call :sleep_seconds %ADB_DEVICE_WAIT_SECS%
+goto :adb_wait_device_loop
+:adb_wait_device_done
+
+echo.>> "%LOG_FILE%"
+echo [INFO] Verifying app package is installed on device %DEVICE_ID%: %APP_ID%>> "%LOG_FILE%"
+set "_PM_PATH_OUT="
+for /f "delims=" %%L in ('adb -s "%DEVICE_ID%" shell pm path "%APP_ID%" 2^>^&1') do if not defined _PM_PATH_OUT set "_PM_PATH_OUT=%%L"
+echo [INFO] adb shell pm path output: !_PM_PATH_OUT!>> "%LOG_FILE%"
+echo !_PM_PATH_OUT! | findstr /i "package:" >nul 2>&1
+if errorlevel 1 (
+    echo ERROR: App package not installed on device %DEVICE_ID%: %APP_ID%>> "%LOG_FILE%"
+    echo ERROR: adb shell pm path must return a line starting with package:/>> "%LOG_FILE%"
+    echo ERROR: Install the APK on this phone, then re-run. Jenkins does not install the app.>> "%LOG_FILE%"
+    set "RUN_EXIT=23"
+    set "STATUS_VALUE=FAIL"
+    set "REASON=APP_NOT_INSTALLED"
+    goto :write_result
+)
+
+echo.>> "%LOG_FILE%"
+echo [INFO] Device %DEVICE_ID% - checking autofill service>> "%LOG_FILE%"
+for /f "delims=" %%A in ('adb -s "%DEVICE_ID%" shell settings get secure autofill_service 2^>^&1') do (
+    if not defined ORIG_AUTOFILL_SERVICE_RESULT set "ORIG_AUTOFILL_SERVICE_RESULT=%%A"
+)
+if defined ORIG_AUTOFILL_SERVICE_RESULT set "ORIG_AUTOFILL_SERVICE=!ORIG_AUTOFILL_SERVICE_RESULT!"
+echo [INFO] Device %DEVICE_ID% - autofill_service before change: !ORIG_AUTOFILL_SERVICE!>> "%LOG_FILE%"
+adb -s "%DEVICE_ID%" shell settings put secure autofill_service null >> "%LOG_FILE%" 2>&1
+if errorlevel 1 (
+    echo [WARN] Device %DEVICE_ID% - could not disable autofill_service, continuing>> "%LOG_FILE%"
+) else (
+    echo [INFO] Device %DEVICE_ID% - autofill disabled ^(autofill_service=null^)>> "%LOG_FILE%"
+)
+
+for %%P in (com.samsung.android.samsungpassautofill com.samsung.android.authfw) do (
+    adb -s "%DEVICE_ID%" shell cmd package disable-user --user 0 %%P >> "%LOG_FILE%" 2>&1
+    if errorlevel 1 (
+        echo [WARN] Device %DEVICE_ID% - Samsung package not disabled/supported: %%P>> "%LOG_FILE%"
+    ) else (
+        echo [INFO] Device %DEVICE_ID% - Samsung package disabled: %%P>> "%LOG_FILE%"
+    )
+)
+
+if /I "%CLEAR_STATE%"=="true" (
+    echo Clearing app state...>> "%LOG_FILE%"
+    adb -s "%DEVICE_ID%" shell pm clear "%APP_ID%" >> "%LOG_FILE%" 2>&1
+    echo Clear-state exit code: !errorlevel!>> "%LOG_FILE%"
+)
+
+echo [INFO] Waking device display ^(KEYCODE_WAKEUP=224^) before Maestro...>> "%LOG_FILE%"
+adb -s "%DEVICE_ID%" shell input keyevent 224 >> "%LOG_FILE%" 2>&1
+
+set "SIGNUP_RETRY_USED=0"
+if /I not "%FLOW_NAME%"=="flow1b" goto :run_maestro_default
+rem ---- flow1b only: Nitesh / 252546Nm# / runtime kodak_<ts>_<random>@test.com ----
+call "%REPO_ROOT%\scripts\flow1b_set_signup_env.bat"
+if errorlevel 1 (
+    echo ERROR: flow1b_set_signup_env failed ^(EMAIL generation^)>> "%LOG_FILE%"
+    set "RUN_EXIT=30"
+    set "STATUS_VALUE=FAIL"
+    set "REASON=FLOW1B_SIGNUP_ENV_FAILED"
+    goto :write_result
+)
+set "KODAK_SIGNUP_JSON="
+set "SIGNUP_RUN_ID="
+for /f "delims=@" %%E in ("!EMAIL!") do set "SIGNUP_RUN_ID=%%E"
+set "SIGNUP_ATTEMPT=0"
+echo.>> "%LOG_FILE%"
+echo === flow1b signup ^(runtime^) ===>> "%LOG_FILE%"
+echo [flow1b] EMAIL=!EMAIL!>> "%LOG_FILE%"
+if defined SIGNUP_RUN_ID echo KODAK_SIGNUP_RUN_ID=!SIGNUP_RUN_ID!>> "%LOG_FILE%"
+
+set "MAESTRO_ARGS=--device "%DEVICE_ID%" test -e FULL_NAME=!FULL_NAME! -e EMAIL=!EMAIL! -e PASSWORD=!PASSWORD! "%FLOW_PATH%""
+if not "%INCLUDE_TAG%"=="" set "MAESTRO_ARGS=!MAESTRO_ARGS! --include-tags "%INCLUDE_TAG%""
+rem config.yaml: Maestro loads workspace config from the current directory (REPO); run from repo root
+
+for /f %%t in ('python -c "import time; print(int(time.time()*1000))" 2^>nul') do set "FLOW_START_MS=%%t"
+if not defined FLOW_START_MS set "FLOW_START_MS=0"
+echo [TIMING] flow_start_ms=!FLOW_START_MS!>> "%LOG_FILE%"
+echo Starting Maestro test (flow1b)... (PASSWORD is not written to the log^)>> "%LOG_FILE%"
+echo [flow1b] !MAESTRO_BIN! --device "%DEVICE_ID%" test -e ... "%FLOW_PATH%">> "%LOG_FILE%"
+echo. >> "%LOG_FILE%"
+call :run_maestro_isolated
+set "RUN_EXIT=%ERRORLEVEL%"
+if "!RUN_EXIT!"=="0" goto :after_flow1b_maestro
+
+python "%REPO_ROOT%\scripts\check_signup_duplicate_log.py" "%LOG_FILE%" 1>>"%LOG_FILE%" 2>&1
+if errorlevel 1 (
+    set "STATUS_VALUE=FAIL"
+    set "REASON=MAESTRO_FAILED"
+    goto :after_flow1b_maestro
+)
+echo Duplicate-like signup error detected; new EMAIL and retry ^(flow1b^) once...>> "%LOG_FILE%"
+call "%REPO_ROOT%\scripts\flow1b_set_signup_env.bat"
+if errorlevel 1 (
+    set "STATUS_VALUE=FAIL"
+    set "REASON=FLOW1B_SIGNUP_RETRY_ENV_FAILED"
+    set "RUN_EXIT=31"
+    goto :write_result
+)
+set "SIGNUP_RUN_ID="
+for /f "delims=@" %%E in ("!EMAIL!") do set "SIGNUP_RUN_ID=%%E"
+set "SIGNUP_ATTEMPT=1"
+set "SIGNUP_RETRY_USED=1"
+echo [flow1b] EMAIL retry: !EMAIL!>> "%LOG_FILE%"
+if defined SIGNUP_RUN_ID echo KODAK_SIGNUP_RUN_ID retry: !SIGNUP_RUN_ID!>> "%LOG_FILE%"
+echo.>> "%LOG_FILE%"
+echo === Maestro retry (flow1b) ===>> "%LOG_FILE%"
+set "MAESTRO_ARGS=--device "%DEVICE_ID%" test -e FULL_NAME=!FULL_NAME! -e EMAIL=!EMAIL! -e PASSWORD=!PASSWORD! "%FLOW_PATH%""
+if not "%INCLUDE_TAG%"=="" set "MAESTRO_ARGS=!MAESTRO_ARGS! --include-tags "%INCLUDE_TAG%""
+call :run_maestro_isolated
+set "RUN_EXIT=%ERRORLEVEL%"
+if "!RUN_EXIT!"=="0" (
+    set "STATUS_VALUE=FLAKY"
+    set "REASON=SIGNUP_DUPLICATE_RETRY"
+) else (
+    set "STATUS_VALUE=FAIL"
+    set "REASON=MAESTRO_FAILED"
+)
+goto :after_flow1b_maestro
+
+:run_maestro_default
+REM TC_ON_E02_* : Bluetooth must be off before the flow — Maestro YAML cannot invoke adb (sandboxed JS).
+echo "%FLOW_NAME%" | findstr /I /C:"TC_ON_E02" >nul 2>&1
+if errorlevel 1 goto :skip_bt_off_for_on_e02
+echo [INFO] Flow %FLOW_NAME% - disabling Bluetooth via adb before Maestro ^(TC_ON_E02^)>> "%LOG_FILE%"
+adb -s "%DEVICE_ID%" shell cmd bluetooth_manager disable >> "%LOG_FILE%" 2>&1
+if errorlevel 1 (
+    adb -s "%DEVICE_ID%" shell svc bluetooth disable >> "%LOG_FILE%" 2>&1
+)
+echo [INFO] Bluetooth disable attempted for TC_ON_E02>> "%LOG_FILE%"
+:skip_bt_off_for_on_e02
+
+set "MAESTRO_ARGS=--device "%DEVICE_ID%" test "%FLOW_PATH%""
+if not "%INCLUDE_TAG%"=="" set "MAESTRO_ARGS=!MAESTRO_ARGS! --include-tags "%INCLUDE_TAG%""
+
+echo Starting Maestro test...>> "%LOG_FILE%"
+echo Command: "%MAESTRO_BIN%" !MAESTRO_ARGS!>> "%LOG_FILE%"
+echo. >> "%LOG_FILE%"
+
+REM ---- Default flows: require device online immediately before Maestro; one rerun if ADB drops mid-run (Jenkins logs: device not found / transport) ----
+set "MAESTRO_DEVICE_RETRY_USED=0"
+set "MAESTRO_DRIVER_7001_RETRY=0"
+:maestro_default_attempt
+echo [INFO] ADB get-state before Maestro ^(retry_used=!MAESTRO_DEVICE_RETRY_USED!^)...>> "%LOG_FILE%"
+set /a "_PREM=0"
+:pre_maestro_adb
+set /a "_PREM+=1"
+if !_PREM! GTR 20 (
+    echo ERROR: Device not online before Maestro after 20s: %DEVICE_ID%>> "%LOG_FILE%"
+    set "RUN_EXIT=22"
+    set "STATUS_VALUE=FAIL"
+    set "REASON=DEVICE_NOT_READY"
+    goto :write_result
+)
+set "_PRE_ST="
+for /f "delims=" %%S in ('adb -s "%DEVICE_ID%" get-state 2^>nul') do if not defined _PRE_ST set "_PRE_ST=%%S"
+if /I "!_PRE_ST!"=="device" goto :pre_maestro_adb_ok
+call :sleep_seconds 1
+goto :pre_maestro_adb
+:pre_maestro_adb_ok
+
+for /f %%t in ('python -c "import time; print(int(time.time()*1000))" 2^>nul') do set "FLOW_START_MS=%%t"
+if not defined FLOW_START_MS set "FLOW_START_MS=0"
+echo [TIMING] flow_start_ms=!FLOW_START_MS!>> "%LOG_FILE%"
+
+if defined ATP_MAESTRO_DRIVER_PORT (
+  echo [INFO] Maestro driver host port=!ATP_MAESTRO_DRIVER_PORT! ^(parallel isolation^)>> "%LOG_FILE%"
+)
+call :run_maestro_isolated
+set "RUN_EXIT=%ERRORLEVEL%"
+if "!RUN_EXIT!"=="0" goto :maestro_default_pass
+
+REM ---- One retry: Android driver IPC (log shows localhost:7001 + Connection refused) — reinstall driver on device ----
+if "!MAESTRO_DRIVER_7001_RETRY!"=="1" goto :skip_maestro_driver_7001_retry
+findstr /i /c:"7001" "%LOG_FILE%" >nul 2>&1
+if errorlevel 1 goto :skip_maestro_driver_7001_retry
+findstr /i /c:"Connection refused" "%LOG_FILE%" >nul 2>&1
+if errorlevel 1 goto :skip_maestro_driver_7001_retry
+echo [WARN] Maestro Android driver handshake failed ^(e.g. localhost:7001 Connection refused^). Retrying once with test --reinstall-driver...>> "%LOG_FILE%"
+set "MAESTRO_DRIVER_7001_RETRY=1"
+set "MAESTRO_ARGS=--device "%DEVICE_ID%" test --reinstall-driver "%FLOW_PATH%""
+if not "%INCLUDE_TAG%"=="" set "MAESTRO_ARGS=!MAESTRO_ARGS! --include-tags "%INCLUDE_TAG%""
+call :sleep_seconds 3
+goto :maestro_default_attempt
+:skip_maestro_driver_7001_retry
+
+if "!MAESTRO_DEVICE_RETRY_USED!"=="1" goto :maestro_default_fail
+
+findstr /i /c:"%DEVICE_ID%" "%LOG_FILE%" | findstr /i /c:"not found" >nul
+if errorlevel 1 goto :maestro_default_fail
+
+echo [WARN] Log suggests ADB lost device %DEVICE_ID%; adb start-server, pause, re-wait, then Maestro once more...>> "%LOG_FILE%"
+set "MAESTRO_DEVICE_RETRY_USED=1"
+adb start-server >> "%LOG_FILE%" 2>&1
+call :sleep_seconds 5
+set /a "_MRW=0"
+:maestro_retry_wait_dev
+set /a "_MRW+=1"
+if !_MRW! GTR 45 (
+    echo [WARN] Re-wait for device capped at 45x2s; attempting Maestro anyway...>> "%LOG_FILE%"
+    goto :maestro_default_attempt
+)
+set "_MRW_ST="
+for /f "delims=" %%S in ('adb -s "%DEVICE_ID%" get-state 2^>nul') do if not defined _MRW_ST set "_MRW_ST=%%S"
+if /I "!_MRW_ST!"=="device" goto :maestro_default_attempt
+call :sleep_seconds 2
+goto :maestro_retry_wait_dev
+
+:maestro_default_pass
+if "!MAESTRO_DRIVER_7001_RETRY!"=="1" (
+    set "STATUS_VALUE=FLAKY"
+    set "REASON=MAESTRO_DRIVER_REINSTALL_OK"
+) else if "!MAESTRO_DEVICE_RETRY_USED!"=="1" (
+    set "STATUS_VALUE=FLAKY"
+    set "REASON=MAESTRO_DEVICE_RETRY_OK"
+)
+goto :after_flow1b_maestro
+
+:maestro_default_fail
+set "STATUS_VALUE=FAIL"
+set "REASON=MAESTRO_FAILED"
+goto :after_flow1b_maestro
+
+:after_flow1b_maestro
+
+for /f %%t in ('python -c "import time; print(int(time.time()*1000))" 2^>nul') do set "FLOW_END_MS=%%t"
+if not defined FLOW_END_MS set "FLOW_END_MS=0"
+set "FLOW_DURATION_MS=0"
+if defined FLOW_START_MS if defined FLOW_END_MS if not "!FLOW_START_MS!"=="0" (
+  for /f %%d in ('python -c "print(max(0,int('!FLOW_END_MS!')-int('!FLOW_START_MS!')))" 2^>nul') do set "FLOW_DURATION_MS=%%d"
+)
+echo [TIMING] flow_end_ms=!FLOW_END_MS! duration_ms=!FLOW_DURATION_MS!>> "%LOG_FILE%"
+
+:write_result
+if not defined DEVICE_NAME (
+  for /f "delims=" %%N in ('python "%REPO_ROOT%\scripts\resolve_device_name.py" "%DEVICE_ID%" 2^>nul') do set "DEVICE_NAME=%%N"
+)
+if not defined DEVICE_NAME set "DEVICE_NAME=%DEVICE_ID%"
+> "%STATUS_FILE%" (
+    echo suite=%SUITE%
+    echo flow=%FLOW_NAME%
+    echo device=%DEVICE_ID%
+    echo device_id=%DEVICE_ID%
+    echo device_name=%DEVICE_NAME%
+    echo status=%STATUS_VALUE%
+    echo exit_code=%RUN_EXIT%
+    echo reason=%REASON%
+    echo log_file=%LOG_FILE%
+    echo first_log_path=%LOG_FILE%
+    echo log_path=%LOG_FILE%
+    echo retry_count=!SIGNUP_RETRY_USED!
+    echo maestro_device_reconnect_retry=!MAESTRO_DEVICE_RETRY_USED!
+    echo maestro_driver_7001_retry=!MAESTRO_DRIVER_7001_RETRY!
+    echo duration_ms=!FLOW_DURATION_MS!
+    echo timestamp=%date% %time%
+)
+if /I "%FLOW_NAME%"=="flow1b" if defined EMAIL (
+    >>"%STATUS_FILE%" echo signup_email=!EMAIL!
+    >>"%STATUS_FILE%" echo signup_run_id=!SIGNUP_RUN_ID!
+    >>"%STATUS_FILE%" echo signup_duplicate_retry_used=!SIGNUP_RETRY_USED!
+    if defined KODAK_SIGNUP_JSON >>"%STATUS_FILE%" echo kodak_signup_json_path=!KODAK_SIGNUP_JSON!
+)
+
+> "%RESULT_FILE%" (
+    echo suite,flow,device,status,exit_code,reason,log_file
+    echo %SUITE%,%FLOW_NAME%,%DEVICE_ID%,%STATUS_VALUE%,%RUN_EXIT%,%REASON%,"%LOG_FILE%"
+)
+
+echo. >> "%LOG_FILE%"
+if /I "%AUTOFILL_RESTORE_AFTER_TEST%"=="1" (
+    if /I "!ORIG_AUTOFILL_SERVICE!"=="unknown" (
+        echo [WARN] Device %DEVICE_ID% - no original autofill_service captured; skip restore>> "%LOG_FILE%"
+    ) else (
+        echo [INFO] Device %DEVICE_ID% - restoring autofill_service to !ORIG_AUTOFILL_SERVICE!>> "%LOG_FILE%"
+        adb -s "%DEVICE_ID%" shell settings put secure autofill_service "!ORIG_AUTOFILL_SERVICE!" >> "%LOG_FILE%" 2>&1
+        if errorlevel 1 (
+            echo [WARN] Device %DEVICE_ID% - autofill restore failed, continuing>> "%LOG_FILE%"
+        ) else (
+            echo [INFO] Device %DEVICE_ID% - autofill restore completed>> "%LOG_FILE%"
+        )
+    )
+)
+
+echo. >> "%LOG_FILE%"
+echo Final status   : %STATUS_VALUE%>> "%LOG_FILE%"
+echo Final reason   : %REASON%>> "%LOG_FILE%"
+echo Final exit code: %RUN_EXIT%>> "%LOG_FILE%"
+exit /b %RUN_EXIT%

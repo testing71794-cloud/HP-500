@@ -1,0 +1,10 @@
+appId: com.hp.impulse.panorama
+---
+- waitForAnimationToEnd
+- tapOn:
+    text: "Get Started"
+    optional: true
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "Sign up"
+    timeout: 25000

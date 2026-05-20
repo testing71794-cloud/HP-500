@@ -1,0 +1,5 @@
+AI_STATUS=UNAVAILABLE
+KEY_PRESENT=yes
+KEY_SOURCE=OPENROUTER_API_KEY
+ERROR=model=openrouter/free network/SSL error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Basic Constraints of CA cert not marked critical (_ssl.c:1081) | model=meta-llama/llama-3.3-70b-instruct:free network/SSL error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Basic Constraints of CA cert not marked critical (_ssl.c:1081) | model=qwen/qwen-2.5-7b-instruct:free network/SSL error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Basic Constraints of CA cert not marked critical (_ssl.c:1081)
+MODEL_TRIED=openrouter/free,meta-llama/llama-3.3-70b-instruct:free,qwen/qwen-2.5-7b-instruct:free
