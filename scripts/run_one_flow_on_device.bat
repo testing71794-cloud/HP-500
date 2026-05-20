@@ -139,9 +139,23 @@ set "RUN_EXIT=!ERRORLEVEL!"
 exit /b 0
 
 :run_maestro_java_direct_setup
+REM Prefer 8.3 short path for -Duser.home on the cmd line (no spaces). If still spaced, use _JAVA_OPTIONS env.
 set "JVM_USER_HOME_OPT="
-if defined ATP_MAESTRO_RUNTIME_ROOT set "JVM_USER_HOME_OPT=-Duser.home="!ATP_MAESTRO_RUNTIME_ROOT!""
-REM Do not expand raw %MAESTRO_OPTS% here (unquoted -D paths split at spaces in cmd.exe).
+set "JVM_USER_HOME_SHORT="
+if defined ATP_MAESTRO_RUNTIME_ROOT (
+  for %%I in ("!ATP_MAESTRO_RUNTIME_ROOT!") do set "JVM_USER_HOME_SHORT=%%~sI"
+  if not defined JVM_USER_HOME_SHORT set "JVM_USER_HOME_SHORT=!ATP_MAESTRO_RUNTIME_ROOT!"
+  echo !JVM_USER_HOME_SHORT!| findstr /r /c:" " >nul
+  if not errorlevel 1 (
+    set "JVM_USER_HOME_OPT="
+    set "_JAVA_OPTIONS=-Duser.home=!ATP_MAESTRO_RUNTIME_ROOT!"
+    echo [ATP-BAT] user.home via _JAVA_OPTIONS env ^(long path^)>> "%LOG_FILE%"
+  ) else (
+    set "JVM_USER_HOME_OPT=-Duser.home=!JVM_USER_HOME_SHORT!"
+    echo [ATP-BAT] user.home via JVM_USER_HOME_OPT=!JVM_USER_HOME_OPT!>> "%LOG_FILE%"
+  )
+  set "MAESTRO_OPTS="
+)
 exit /b 0
 
 :run_maestro_isolated_done
@@ -187,6 +201,15 @@ set "JDK_JAVA_OPTIONS="
 
 set "REPO_ROOT=%~dp0.."
 for %%I in ("%REPO_ROOT%") do set "REPO_ROOT=%%~fI"
+
+cd /d "%REPO_ROOT%"
+if errorlevel 1 (
+  echo [ATP-BAT] ERROR: cd /d to REPO_ROOT failed: "%REPO_ROOT%"
+  exit /b 15
+)
+
+REM Inherited MAESTRO_OPTS may contain unquoted -Duser.home=... with spaces; clear when using runtime root.
+if defined ATP_MAESTRO_RUNTIME_ROOT set "MAESTRO_OPTS="
 
 echo [ATP-BAT] REPO_ROOT="%REPO_ROOT%"
 echo [ATP-BAT] SUITE_NAME="%SUITE_NAME%"

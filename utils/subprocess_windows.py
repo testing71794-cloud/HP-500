@@ -13,6 +13,7 @@ from typing import Any, Mapping, Sequence
 
 __all__ = [
     "build_cmd_exe_c",
+    "build_cmd_exe_c_batch",
     "build_run_one_flow_on_device_argv",
     "build_subprocess_args",
     "execute_command",
@@ -70,6 +71,18 @@ def build_cmd_exe_c(command: str | Path, *args: str | Path) -> list[str]:
     return ["cmd.exe", "/d", "/c", _resolve_cmd_token(command), *[_resolve_cmd_token(a) for a in args]]
 
 
+def build_cmd_exe_c_batch(bat: str | Path, *args: str | Path) -> list[str]:
+    """
+    Launch a .bat/.cmd via cmd.exe using /s /c and one quoted command tail.
+
+    Required when the batch path contains spaces; otherwise cmd may treat
+    ``C:\\Jenkins\\workspace\\HP`` as the program name.
+    """
+    bat_s = _resolve_cmd_token(bat)
+    tail = subprocess.list2cmdline([bat_s, *[_resolve_cmd_token(a) for a in args]])
+    return ["cmd.exe", "/d", "/s", "/c", tail]
+
+
 def build_run_one_flow_on_device_argv(
     bat: str | Path,
     *,
@@ -82,7 +95,7 @@ def build_run_one_flow_on_device_argv(
     include_tag: str = "__EMPTY__",
 ) -> list[str]:
     """Argv for blocking ``scripts/run_one_flow_on_device.bat`` (one cmd.exe child)."""
-    return build_cmd_exe_c(
+    return build_cmd_exe_c_batch(
         bat,
         suite_id,
         flow_path,
