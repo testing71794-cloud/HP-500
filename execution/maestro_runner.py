@@ -30,6 +30,13 @@ from utils.subprocess_windows import (  # noqa: E402
     popen_command,
 )
 
+from .atp_app_install import (
+    ATP_EXIT_APP_NOT_INSTALLED,
+    LOG_MARKER_APP_NOT_INSTALLED,
+    is_app_installed,
+    is_app_not_installed_exit,
+    log_app_install_check,
+)
 from .flow_timing import append_timing, read_status_fields
 
 
@@ -576,6 +583,15 @@ def run_run_one_flow_device_bat(
     bat = (repo / "scripts" / "run_one_flow_on_device.bat").resolve()
     if not bat.is_file():
         raise FileNotFoundError(bat)
+    if not is_app_installed(device_id, app_id):
+        log_app_install_check(device_id, app_id, False)
+        print(
+            f"[ATP] {LOG_MARKER_APP_NOT_INSTALLED} device={_dev_log(device_id)} "
+            f"app={app_id} (pre_maestro fast-fail)",
+            flush=True,
+        )
+        return ATP_EXIT_APP_NOT_INSTALLED
+    log_app_install_check(device_id, app_id, True)
     env = os.environ.copy()
     iso = _apply_parallel_maestro_env(
         env,
@@ -769,12 +785,33 @@ def run_run_one_flow_device_bat(
                             log_path=log_path,
                             child_pid=child.pid,
                             log_start_offset=log_start_offset,
+                            child=child,
                         )
                         if not ready:
                             print(
                                 f"[ATP] startup_retry_root_cause device={_dev_log(device_id)} reason={reason}",
                                 flush=True,
                             )
+                            if reason == "app_not_installed":
+                                if child.poll() is not None:
+                                    code = int(child.returncode or ATP_EXIT_APP_NOT_INSTALLED)
+                                else:
+                                    code = ATP_EXIT_APP_NOT_INSTALLED
+                                cleanup_after_startup_failure(
+                                    device_id,
+                                    repo=repo,
+                                    suite_id=suite_id,
+                                    child_pid=child.pid,
+                                    driver_port=driver_port_int,
+                                )
+                                unregister_owned_child_pid(child.pid)
+                                startup_failure_cleaned = True
+                                print(
+                                    f"[ATP] {LOG_MARKER_APP_NOT_INSTALLED} device={_dev_log(device_id)} "
+                                    f"exit={code} (no startup retry)",
+                                    flush=True,
+                                )
+                                break
                             if reason in (
                                 "unsupported_driver_port_flag",
                                 "tcp_forwarder",
@@ -823,6 +860,13 @@ def run_run_one_flow_device_bat(
                     break
                 code = int(child.returncode or 0)
                 unregister_owned_child_pid(child.pid)
+                if is_app_not_installed_exit(code):
+                    print(
+                        f"[ATP] {LOG_MARKER_APP_NOT_INSTALLED} device={_dev_log(device_id)} "
+                        f"exit={code} (bat fast-fail)",
+                        flush=True,
+                    )
+                    break
                 if os.environ.get("ATP_MAESTRO_POST_RUN_FORWARD_CLEANUP", "1").strip().lower() not in (
                     "0",
                     "false",

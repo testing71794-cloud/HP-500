@@ -50,6 +50,12 @@ from .maestro_runner import (
     resolve_maestro_launcher,
     run_run_one_flow_device_bat,
 )
+from .atp_app_install import (
+    ATP_EXIT_APP_NOT_INSTALLED,
+    SKIPPED_APP_NOT_INSTALLED,
+    is_app_not_installed_exit,
+    preflight_app_install_matrix,
+)
 from .flow_timing import read_status_fields
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -679,6 +685,14 @@ def _report_device_outcome(
             dur_hint = f" duration_ms={dm}"
     except Exception:
         pass
+    if is_app_not_installed_exit(ex):
+        print(
+            f"  [SKIP] {SKIPPED_APP_NOT_INSTALLED} exit={ATP_EXIT_APP_NOT_INSTALLED} "
+            f"device={_dev_log(dev)} flow={flow_base}{dur_hint}",
+            flush=True,
+        )
+        _print_log_tail(repo, suite_id, flow, dev)
+        return False
     if ex != 0:
         print(f"  [FAIL] exit={ex} device={_dev_log(dev)} flow={flow_base}{dur_hint}", flush=True)
         _print_log_tail(repo, suite_id, flow, dev)
@@ -766,7 +780,27 @@ def run_atp_folder_blocking(
         print(f"ERROR: {e}", flush=True)
         return 1
 
-    print(f"Devices: {', '.join(_dev_log(d) for d in devices)}", flush=True)
+    print(f"Devices (adb): {', '.join(_dev_log(d) for d in devices)}", flush=True)
+    write_section("ATP preflight app install")
+    print(f"[ATP] preflight app_install_matrix app={app_id}", flush=True)
+    devices, skipped_no_app, _install_matrix = preflight_app_install_matrix(devices, app_id)
+    if skipped_no_app:
+        print(
+            f"[ATP] preflight skip scheduling for {len(skipped_no_app)} device(s) without app: "
+            f"{', '.join(_dev_log(d) for d in skipped_no_app)}",
+            flush=True,
+        )
+    if not devices:
+        print(
+            f"ERROR: No connected device has {app_id} installed. "
+            f"Install the APK on at least one device, then re-run.",
+            flush=True,
+        )
+        return 1
+    print(
+        f"Devices (active): {', '.join(_dev_log(d) for d in devices)}",
+        flush=True,
+    )
     os.environ["ATP_ORCH_DEVICE_COUNT"] = str(len(devices))
     os.environ["ATP_ORCH_DEVICES"] = ",".join(devices)
     exec_mode = _device_execution_mode(len(devices))

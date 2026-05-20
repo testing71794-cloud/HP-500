@@ -407,6 +407,14 @@ def _read_log_since(log_path: Path, start_offset: int, max_bytes: int = 65536) -
 def _startup_failed_in_log(text: str) -> str | None:
     if not text:
         return None
+    if (
+        "APP_NOT_INSTALLED_ON_DEVICE" in text
+        or "SKIPPED_APP_NOT_INSTALLED" in text
+        or "App package not installed on device" in text
+        or "REASON=APP_NOT_INSTALLED" in text
+        or "REASON=SKIPPED_APP_NOT_INSTALLED" in text
+    ):
+        return "app_not_installed"
     if "TcpForwarder.waitFor" in text or "allocateForwarder" in text:
         return "tcp_forwarder"
     if "TimeoutException" in text and "tcpForward" in text:
@@ -427,6 +435,7 @@ def wait_for_maestro_session_ready(
     log_start_offset: int = 0,
     timeout_sec: float | None = None,
     driver_port: int | None = None,
+    child: subprocess.Popen | None = None,
 ) -> tuple[bool, str]:
     """
     Poll per-flow Maestro log (only bytes written after log_start_offset) until session ready.
@@ -437,6 +446,16 @@ def wait_for_maestro_session_ready(
     device_re = re.compile(rf"Running on\s+{re.escape(device_id)}\b", re.I)
     flow_re = re.compile(r">\s*Flow\s+", re.I)
     while time.monotonic() < deadline:
+        if child is not None:
+            rc = child.poll()
+            if rc is not None:
+                if rc == 23:
+                    return False, "app_not_installed"
+                chunk_early = _read_log_since(log_path, log_start_offset)
+                fail_early = _startup_failed_in_log(chunk_early)
+                if fail_early == "app_not_installed":
+                    return False, "app_not_installed"
+                return False, f"child_exit_{rc}"
         chunk = _read_log_since(log_path, log_start_offset)
         fail = _startup_failed_in_log(chunk)
         if fail:
@@ -584,6 +603,7 @@ class MaestroStartupGate:
         log_path: Path,
         child_pid: int,
         log_start_offset: int = 0,
+        child: subprocess.Popen | None = None,
     ) -> tuple[bool, str]:
         """
         Wait for log-ready while holding lock, apply stabilization delay, then release lock.
@@ -598,6 +618,7 @@ class MaestroStartupGate:
                 device_id=self.device_id,
                 log_start_offset=log_start_offset,
                 driver_port=self.driver_port,
+                child=child,
             )
             wait_sec = time.time() - t0
             if not ready:

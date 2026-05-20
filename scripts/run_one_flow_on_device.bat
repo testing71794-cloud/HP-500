@@ -12,6 +12,28 @@ set /a "_ss_ping=!_ss!+1"
 ping 127.0.0.1 -n !_ss_ping! >nul
 exit /b 0
 
+REM adb shell pm path — must return package:/ before Maestro starts.
+:verify_app_installed
+echo.>> "%LOG_FILE%"
+echo [INFO] Verifying app package is installed on device %DEVICE_ID%: %APP_ID%>> "%LOG_FILE%"
+set "_PM_PATH_OUT="
+for /f "delims=" %%L in ('adb -s "%DEVICE_ID%" shell pm path "%APP_ID%" 2^>^&1') do if not defined _PM_PATH_OUT set "_PM_PATH_OUT=%%L"
+echo [INFO] adb shell pm path output: !_PM_PATH_OUT!>> "%LOG_FILE%"
+echo !_PM_PATH_OUT! | findstr /i "package:" >nul 2>&1
+if errorlevel 1 (
+    echo ERROR: App package not installed on device %DEVICE_ID%: %APP_ID%>> "%LOG_FILE%"
+    echo ERROR: adb shell pm path must return a line starting with package:/>> "%LOG_FILE%"
+    echo ERROR: Install the APK on this phone, then re-run. Jenkins does not install the app.>> "%LOG_FILE%"
+    echo APP_NOT_INSTALLED_ON_DEVICE
+    echo [ATP-BAT] APP_NOT_INSTALLED_ON_DEVICE device="%DEVICE_ID%" app="%APP_ID%"
+    set "RUN_EXIT=23"
+    set "STATUS_VALUE=SKIP"
+    set "REASON=SKIPPED_APP_NOT_INSTALLED"
+    exit /b 1
+)
+echo [ATP-BAT] app_install_check device="%DEVICE_ID%" app="%APP_ID%" installed=true>> "%LOG_FILE%"
+exit /b 0
+
 REM Orchestrator may set ATP_MAESTRO_DRIVER_PORT / ATP_MAESTRO_DEBUG_OUTPUT (flags only; no MAESTRO_ARGS string).
 :apply_maestro_parallel_isolation
 exit /b 0
@@ -298,6 +320,26 @@ if not exist "%FLOW_PATH%" (
 REM ---- ADB: ensure server is up (mitigates stale Jenkins adb on Windows) ----
 adb start-server >> "%LOG_FILE%" 2>&1
 
+REM ---- Quick device online + app install check (fail fast before Maestro / long ADB wait) ----
+if not defined ATP_QUICK_APP_CHECK_ATTEMPTS set "ATP_QUICK_APP_CHECK_ATTEMPTS=5"
+if not defined ATP_QUICK_APP_CHECK_SECS set "ATP_QUICK_APP_CHECK_SECS=1"
+echo [INFO] Quick app install precheck device %DEVICE_ID% app %APP_ID%>> "%LOG_FILE%"
+set /a "_QO=0"
+:quick_online_loop
+set /a "_QO+=1"
+if !_QO! GTR %ATP_QUICK_APP_CHECK_ATTEMPTS% goto :quick_online_done
+set "_QO_STATE="
+for /f "delims=" %%S in ('adb -s "%DEVICE_ID%" get-state 2^>nul') do if not defined _QO_STATE set "_QO_STATE=%%S"
+if /I "!_QO_STATE!"=="device" (
+    echo [INFO] Quick online: device %DEVICE_ID% ready after !_QO! attempt(s)>> "%LOG_FILE%"
+    call :verify_app_installed
+    if errorlevel 1 goto :write_result
+    goto :adb_wait_device_loop
+)
+call :sleep_seconds %ATP_QUICK_APP_CHECK_SECS%
+goto :quick_online_loop
+:quick_online_done
+
 REM ---- Wait until device reports get-state=device (Jenkins parallel / USB flake) ----
 REM Override: set ADB_DEVICE_WAIT_ATTEMPTS=30 (default 60) x ADB_DEVICE_WAIT_SECS=2 (default 2) ~= 120s max
 if not defined ADB_DEVICE_WAIT_ATTEMPTS set "ADB_DEVICE_WAIT_ATTEMPTS=60"
@@ -324,21 +366,8 @@ call :sleep_seconds %ADB_DEVICE_WAIT_SECS%
 goto :adb_wait_device_loop
 :adb_wait_device_done
 
-echo.>> "%LOG_FILE%"
-echo [INFO] Verifying app package is installed on device %DEVICE_ID%: %APP_ID%>> "%LOG_FILE%"
-set "_PM_PATH_OUT="
-for /f "delims=" %%L in ('adb -s "%DEVICE_ID%" shell pm path "%APP_ID%" 2^>^&1') do if not defined _PM_PATH_OUT set "_PM_PATH_OUT=%%L"
-echo [INFO] adb shell pm path output: !_PM_PATH_OUT!>> "%LOG_FILE%"
-echo !_PM_PATH_OUT! | findstr /i "package:" >nul 2>&1
-if errorlevel 1 (
-    echo ERROR: App package not installed on device %DEVICE_ID%: %APP_ID%>> "%LOG_FILE%"
-    echo ERROR: adb shell pm path must return a line starting with package:/>> "%LOG_FILE%"
-    echo ERROR: Install the APK on this phone, then re-run. Jenkins does not install the app.>> "%LOG_FILE%"
-    set "RUN_EXIT=23"
-    set "STATUS_VALUE=FAIL"
-    set "REASON=APP_NOT_INSTALLED"
-    goto :write_result
-)
+call :verify_app_installed
+if errorlevel 1 goto :write_result
 
 echo.>> "%LOG_FILE%"
 echo [INFO] Device %DEVICE_ID% - checking autofill service>> "%LOG_FILE%"
