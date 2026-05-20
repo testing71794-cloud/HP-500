@@ -25,6 +25,10 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from utils.device_utils import get_device_display_name  # noqa: E402
+from utils.subprocess_windows import (  # noqa: E402
+    build_run_one_flow_on_device_argv,
+    popen_command,
+)
 
 from .flow_timing import append_timing, read_status_fields
 
@@ -504,10 +508,9 @@ def _apply_parallel_maestro_env(
     env["LOCALAPPDATA"] = str(local_app)
     env["APPDATA"] = str(roaming)
     meta["localappdata"] = str(local_app)
-    # Do not override USERPROFILE (breaks Windows AppDirs / Maestro init). Redirect JVM user.home.
-    opts = (env.get("MAESTRO_OPTS") or "").strip()
-    user_home_flag = f'-Duser.home={runtime_home}'
-    env["MAESTRO_OPTS"] = f"{opts} {user_home_flag}".strip() if opts else user_home_flag
+    # user.home is applied in run_one_flow_on_device.bat as JVM_USER_HOME_OPT from
+    # ATP_MAESTRO_RUNTIME_ROOT (quoted). Do not put an unquoted -Duser.home=... in MAESTRO_OPTS
+    # or cmd.exe splits paths like C:\Jenkins\workspace\HP 500 Android at spaces.
     env["ATP_MAESTRO_JAVA_DIRECT"] = "1"
     meta["maestro_user_home"] = str(runtime_home)
 
@@ -601,19 +604,16 @@ def run_run_one_flow_device_bat(
     timeout_sec = int(os.environ.get("ATP_FLOW_TIMEOUT_SEC", str(4 * 3600)))
 
     # cmd /d /c <bat> (no "call") — one cmd.exe child per device; bat invokes Maestro without "call".
-    cmd: list[str] = [
-        "cmd.exe",
-        "/d",
-        "/c",
-        str(bat),
-        suite_id,
-        str(flow_path.resolve()),
-        device_id,
-        app_id,
-        clear_state,
-        str(maestro_launcher),
-        include_tag,
-    ]
+    cmd = build_run_one_flow_on_device_argv(
+        bat,
+        suite_id=suite_id,
+        flow_path=flow_path.resolve(),
+        device_id=device_id,
+        app_id=app_id,
+        clear_state=clear_state,
+        maestro_launcher=maestro_launcher,
+        include_tag=include_tag,
+    )
     log_lifecycle(
         repo,
         suite_id,
@@ -712,7 +712,7 @@ def run_run_one_flow_device_bat(
                     gate_ctx = nullcontext()
 
                 with gate_ctx:
-                    child = subprocess.Popen(cmd, **popen_kw)
+                    child = popen_command(cmd, prefix="[ATP]", **popen_kw)
                     register_owned_child_pid(child.pid)
                     print(
                         f"[ATP] maestro_subprocess_child device={_dev_log(device_id)} flow={flow_path.stem} "

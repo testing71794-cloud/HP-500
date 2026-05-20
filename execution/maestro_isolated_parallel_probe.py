@@ -132,8 +132,10 @@ def _run_isolated_hierarchy(
     env = os.environ.copy()
     env["ANDROID_SERIAL"] = device_id
     env.pop("ANDROID_DEBUG_SERIAL", None)
+    from utils.subprocess_windows import java_system_property
+
     opts = (env.get("MAESTRO_OPTS") or "").strip()
-    user_home_flag = f"-Duser.home={runtime_home}"
+    user_home_flag = java_system_property("user.home", runtime_home)
     env["MAESTRO_OPTS"] = f"{opts} {user_home_flag}".strip() if opts else user_home_flag
     env["TMP"] = str(runtime_home / "tmp")
     env["TEMP"] = str(runtime_home / "tmp")

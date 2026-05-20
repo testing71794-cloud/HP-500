@@ -499,10 +499,12 @@ def build_maestro_cmd(
         "--output",
         str(junit_out),
     ]
+    from utils.subprocess_windows import build_cmd_exe_c, safe_windows_path
+
     lower = maestro_s.lower()
     if lower.endswith(".bat") or lower.endswith(".cmd"):
-        return ["cmd", "/c", maestro_s, *parts]
-    return [maestro_s, *parts]
+        return build_cmd_exe_c(maestro_s, *parts)
+    return [safe_windows_path(maestro_s) if Path(maestro_s).exists() else maestro_s, *parts]
 
 
 def run_maestro_flow(

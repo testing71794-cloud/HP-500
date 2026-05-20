@@ -30,8 +30,10 @@ if defined ATP_MAESTRO_RUNTIME_ROOT (
 )
 if /I "%ATP_MAESTRO_JAVA_DIRECT%"=="1" (
   if exist "%JAVA_EXE%" if exist "%MAESTRO_APP_HOME%\lib" (
-    echo Command: "%JAVA_EXE%" %MAESTRO_OPTS% -classpath "%MAESTRO_CLASSPATH%" maestro.cli.AppKt !MAESTRO_ARGS!>> "%LOG_FILE%"
-    "%JAVA_EXE%" %MAESTRO_OPTS% -classpath "%MAESTRO_CLASSPATH%" maestro.cli.AppKt !MAESTRO_ARGS! >> "%LOG_FILE%" 2>&1
+    set "JVM_USER_HOME_OPT="
+    if defined ATP_MAESTRO_RUNTIME_ROOT set "JVM_USER_HOME_OPT=-Duser.home="!ATP_MAESTRO_RUNTIME_ROOT!""
+    echo Command: "%JAVA_EXE%" !JVM_USER_HOME_OPT! %MAESTRO_OPTS% -classpath "!MAESTRO_CLASSPATH!" maestro.cli.AppKt !MAESTRO_ARGS!>> "%LOG_FILE%"
+    "%JAVA_EXE%" !JVM_USER_HOME_OPT! %MAESTRO_OPTS% -classpath "!MAESTRO_CLASSPATH!" maestro.cli.AppKt !MAESTRO_ARGS! >> "%LOG_FILE%" 2>&1
     set "RUN_EXIT=!ERRORLEVEL!"
     goto :run_maestro_isolated_done
   )

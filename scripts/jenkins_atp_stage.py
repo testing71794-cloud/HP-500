@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import os
 import re
-import subprocess
 import sys
 from pathlib import Path
 
@@ -19,7 +18,10 @@ REPO = Path(__file__).resolve().parents[1]
 _SCRIPTS = Path(__file__).resolve().parent
 if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
+if str(REPO) not in sys.path:
+    sys.path.insert(0, str(REPO))
 from atp_folder_resolve import resolve_atp_subfolder
+from utils.subprocess_windows import build_cmd_exe_c, execute_command  # noqa: E402
 
 ORCHESTRATOR_MODULE = "execution.atp_jenkins_orchestrator"
 
@@ -53,10 +55,11 @@ def _refresh_devices_on_this_agent(repo: Path) -> None:
     if not bat.is_file():
         return
     print("[jenkins_atp_stage] refreshing detected_devices.txt on this agent (list_devices.bat)", flush=True)
-    subprocess.run(
-        ["cmd.exe", "/c", "call", str(bat), str(repo)],
-        cwd=str(repo),
+    execute_command(
+        build_cmd_exe_c("call", bat, repo),
+        cwd=repo,
         check=False,
+        prefix="[jenkins_atp_stage]",
     )
 
 
@@ -88,7 +91,7 @@ def cmd_run(folder: str, app: str, clear_state: str, maestro_cmd: str) -> int:
     _refresh_devices_on_this_agent(REPO)
     _log_orchestrator_fingerprint(REPO)
     # Stack A: blocking Python orchestrator (no detached PowerShell Start-Process chain).
-    p = subprocess.run(
+    p = execute_command(
         [
             sys.executable,
             "-m",
@@ -99,7 +102,8 @@ def cmd_run(folder: str, app: str, clear_state: str, maestro_cmd: str) -> int:
             maestro_cmd,
             disk,
         ],
-        cwd=str(REPO),
+        cwd=REPO,
+        prefix="[jenkins_atp_stage]",
     )
     if p.returncode != 0:
         touch_flag(f"{sid}_failed.flag")
@@ -110,9 +114,10 @@ def cmd_validate(suite_id: str) -> int:
     """Match Jenkins bat: set *_no_results.flag on issues; step exit 0 (catchError / flags)."""
     root = REPO
     py = sys.executable
-    v = subprocess.run(
+    v = execute_command(
         [py, str(REPO / "scripts" / "validate_suite_artifacts.py"), suite_id, str(root)],
-        cwd=str(root),
+        cwd=root,
+        prefix="[jenkins_atp_stage]",
     )
     if v.returncode != 0:
         touch_flag(f"{suite_id}_no_results.flag")
@@ -136,7 +141,7 @@ def cmd_excel(folder: str) -> int:
     py = sys.executable
     # Do NOT pass --skip-if-empty: failed runs may have no parsable status rows yet we still
     # must merge into final_execution_report.xlsx (generate_excel_report writes placeholder rows).
-    p = subprocess.run(
+    p = execute_command(
         [
             py,
             str(REPO / "scripts" / "generate_excel_report.py"),
@@ -145,7 +150,8 @@ def cmd_excel(folder: str) -> int:
             sid,
             label,
         ],
-        cwd=str(REPO),
+        cwd=REPO,
+        prefix="[jenkins_atp_stage]",
     )
     if p.returncode != 0:
         touch_flag(f"{sid}_report_failed.flag")
