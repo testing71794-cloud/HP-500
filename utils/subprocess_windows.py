@@ -13,7 +13,6 @@ from typing import Any, Mapping, Sequence
 
 __all__ = [
     "build_cmd_exe_c",
-    "build_cmd_exe_c_batch",
     "build_run_one_flow_on_device_argv",
     "build_subprocess_args",
     "execute_command",
@@ -71,18 +70,6 @@ def build_cmd_exe_c(command: str | Path, *args: str | Path) -> list[str]:
     return ["cmd.exe", "/d", "/c", _resolve_cmd_token(command), *[_resolve_cmd_token(a) for a in args]]
 
 
-def build_cmd_exe_c_batch(bat: str | Path, *args: str | Path) -> list[str]:
-    """
-    Launch a .bat/.cmd via cmd.exe using /s /c and one quoted command tail.
-
-    Required when the batch path contains spaces; otherwise cmd may treat
-    ``C:\\Jenkins\\workspace\\HP`` as the program name.
-    """
-    bat_s = _resolve_cmd_token(bat)
-    tail = subprocess.list2cmdline([bat_s, *[_resolve_cmd_token(a) for a in args]])
-    return ["cmd.exe", "/d", "/s", "/c", tail]
-
-
 def build_run_one_flow_on_device_argv(
     bat: str | Path,
     *,
@@ -94,17 +81,25 @@ def build_run_one_flow_on_device_argv(
     maestro_launcher: str | Path,
     include_tag: str = "__EMPTY__",
 ) -> list[str]:
-    """Argv for blocking ``scripts/run_one_flow_on_device.bat`` (one cmd.exe child)."""
-    return build_cmd_exe_c_batch(
-        bat,
-        suite_id,
-        flow_path,
-        device_id,
-        app_id,
-        clear_state,
-        maestro_launcher,
-        include_tag,
-    )
+    """
+    Argv for blocking ``scripts/run_one_flow_on_device.bat``.
+
+    Invoke the .bat directly (no cmd.exe /c string). subprocess list2cmdline quotes
+    paths with spaces when CreateProcess runs the batch.
+    """
+    maestro_s = str(maestro_launcher)
+    if Path(maestro_s).is_file():
+        maestro_s = safe_windows_path(maestro_launcher)
+    return [
+        _resolve_cmd_token(bat),
+        str(suite_id),
+        _resolve_cmd_token(flow_path),
+        str(device_id),
+        str(app_id),
+        str(clear_state),
+        maestro_s,
+        str(include_tag),
+    ]
 
 
 def log_subprocess_launch(
@@ -114,8 +109,12 @@ def log_subprocess_launch(
     shell: bool = False,
     prefix: str = "[ATP]",
 ) -> None:
-    print(f"{prefix} subprocess_safe_args={list(cmd)!r}", flush=True)
+    cmd_list = list(cmd)
+    print(f"{prefix} subprocess_safe_args={cmd_list!r}", flush=True)
     print(f"{prefix} subprocess_shell={shell}", flush=True)
+    if cmd_list:
+        print(f"{prefix} subprocess_executable={cmd_list[0]!r}", flush=True)
+        print(f"{prefix} subprocess_arg_count={len(cmd_list)}", flush=True)
     if cwd:
         print(f'{prefix} cwd="{safe_windows_path(cwd)}"', flush=True)
     else:

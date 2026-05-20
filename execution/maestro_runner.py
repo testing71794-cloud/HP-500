@@ -603,7 +603,7 @@ def run_run_one_flow_device_bat(
     # Ensure child cmd sees the same Maestro/Java discovery as Jenkins (set_maestro_java.bat still runs inside bat).
     timeout_sec = int(os.environ.get("ATP_FLOW_TIMEOUT_SEC", str(4 * 3600)))
 
-    # cmd /d /c <bat> (no "call") — one cmd.exe child per device; bat invokes Maestro without "call".
+    # Direct .bat argv (no cmd.exe /c string); shell=False; paths with spaces are quoted by subprocess.
     cmd = build_run_one_flow_on_device_argv(
         bat,
         suite_id=suite_id,
