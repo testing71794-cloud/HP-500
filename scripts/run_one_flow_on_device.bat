@@ -12,36 +12,138 @@ set /a "_ss_ping=!_ss!+1"
 ping 127.0.0.1 -n !_ss_ping! >nul
 exit /b 0
 
-REM Orchestrator may set ATP_MAESTRO_DRIVER_PORT / ATP_MAESTRO_DEBUG_OUTPUT per device (parallel isolation).
+REM Orchestrator may set ATP_MAESTRO_DRIVER_PORT / ATP_MAESTRO_DEBUG_OUTPUT (flags only; no MAESTRO_ARGS string).
 :apply_maestro_parallel_isolation
-if defined ATP_MAESTRO_DRIVER_PORT (
-  set "MAESTRO_ARGS=--driver-host-port %ATP_MAESTRO_DRIVER_PORT% !MAESTRO_ARGS!"
-)
-if defined ATP_MAESTRO_DEBUG_OUTPUT (
-  set "MAESTRO_ARGS=!MAESTRO_ARGS! --debug-output "!ATP_MAESTRO_DEBUG_OUTPUT!""
-)
 exit /b 0
 
-REM Isolated Maestro: direct java maestro.cli.AppKt (no maestro.bat/call); env from orchestrator (LOCALAPPDATA, MAESTRO_OPTS).
+REM Isolated Maestro: direct java maestro.cli.AppKt (no maestro.bat/call); env from orchestrator (LOCALAPPDATA).
 :run_maestro_isolated
 call :apply_maestro_parallel_isolation
+echo [ATP-BAT] MAESTRO_BIN="%MAESTRO_BIN%"
+echo [ATP-BAT] FLOW_FILE="%FLOW_PATH%"
+echo [ATP-BAT] DEVICE_ID="%DEVICE_ID%"
+echo [ATP-BAT] CURRENT_DIR="%CD%"
+echo [ATP-BAT] MAESTRO_BIN="%MAESTRO_BIN%">> "%LOG_FILE%"
+echo [ATP-BAT] FLOW_FILE="%FLOW_PATH%">> "%LOG_FILE%"
+echo [ATP-BAT] DEVICE_ID="%DEVICE_ID%">> "%LOG_FILE%"
+echo [ATP-BAT] CURRENT_DIR="%CD%">> "%LOG_FILE%"
 if defined ATP_MAESTRO_RUNTIME_ROOT (
-  echo [INFO] Maestro runtime root=!ATP_MAESTRO_RUNTIME_ROOT! LOCALAPPDATA=!LOCALAPPDATA!>> "%LOG_FILE%"
+  echo [INFO] Maestro runtime root="!ATP_MAESTRO_RUNTIME_ROOT!" LOCALAPPDATA="!LOCALAPPDATA!">> "%LOG_FILE%"
 )
+set "INCLUDE_TAG_ARG="
+if not "%INCLUDE_TAG%"=="" set "INCLUDE_TAG_ARG=--include-tags "%INCLUDE_TAG%""
+if /I "%MAESTRO_MODE%"=="flow1b" goto :run_maestro_isolated_flow1b
+if /I "%MAESTRO_MODE%"=="reinstall_driver" goto :run_maestro_isolated_reinstall
+goto :run_maestro_isolated_default
+
+:run_maestro_isolated_flow1b
 if /I "%ATP_MAESTRO_JAVA_DIRECT%"=="1" (
   if exist "%JAVA_EXE%" if exist "%MAESTRO_APP_HOME%\lib" (
-    set "JVM_USER_HOME_OPT="
-    if defined ATP_MAESTRO_RUNTIME_ROOT set "JVM_USER_HOME_OPT=-Duser.home="!ATP_MAESTRO_RUNTIME_ROOT!""
-    echo Command: "%JAVA_EXE%" !JVM_USER_HOME_OPT! %MAESTRO_OPTS% -classpath "!MAESTRO_CLASSPATH!" maestro.cli.AppKt !MAESTRO_ARGS!>> "%LOG_FILE%"
-    "%JAVA_EXE%" !JVM_USER_HOME_OPT! %MAESTRO_OPTS% -classpath "!MAESTRO_CLASSPATH!" maestro.cli.AppKt !MAESTRO_ARGS! >> "%LOG_FILE%" 2>&1
-    set "RUN_EXIT=!ERRORLEVEL!"
+    call :run_maestro_java_direct_flow1b
     goto :run_maestro_isolated_done
   )
   echo [WARN] ATP_MAESTRO_JAVA_DIRECT=1 but java/lib missing; falling back to MAESTRO_BIN>> "%LOG_FILE%"
 )
-echo Command: "%MAESTRO_BIN%" !MAESTRO_ARGS!>> "%LOG_FILE%"
-"%MAESTRO_BIN%" !MAESTRO_ARGS! >> "%LOG_FILE%" 2>&1
+call :log_maestro_command_header
+if defined ATP_MAESTRO_DRIVER_PORT if defined ATP_MAESTRO_DEBUG_OUTPUT (
+  "%MAESTRO_BIN%" --driver-host-port %ATP_MAESTRO_DRIVER_PORT% --debug-output "!ATP_MAESTRO_DEBUG_OUTPUT!" --device "%DEVICE_ID%" test -e FULL_NAME=!FULL_NAME! -e EMAIL=!EMAIL! -e PASSWORD=!PASSWORD! "%FLOW_PATH%" !INCLUDE_TAG_ARG! >> "%LOG_FILE%" 2>&1
+) else if defined ATP_MAESTRO_DRIVER_PORT (
+  "%MAESTRO_BIN%" --driver-host-port %ATP_MAESTRO_DRIVER_PORT% --device "%DEVICE_ID%" test -e FULL_NAME=!FULL_NAME! -e EMAIL=!EMAIL! -e PASSWORD=!PASSWORD! "%FLOW_PATH%" !INCLUDE_TAG_ARG! >> "%LOG_FILE%" 2>&1
+) else if defined ATP_MAESTRO_DEBUG_OUTPUT (
+  "%MAESTRO_BIN%" --debug-output "!ATP_MAESTRO_DEBUG_OUTPUT!" --device "%DEVICE_ID%" test -e FULL_NAME=!FULL_NAME! -e EMAIL=!EMAIL! -e PASSWORD=!PASSWORD! "%FLOW_PATH%" !INCLUDE_TAG_ARG! >> "%LOG_FILE%" 2>&1
+) else (
+  "%MAESTRO_BIN%" --device "%DEVICE_ID%" test -e FULL_NAME=!FULL_NAME! -e EMAIL=!EMAIL! -e PASSWORD=!PASSWORD! "%FLOW_PATH%" !INCLUDE_TAG_ARG! >> "%LOG_FILE%" 2>&1
+)
 set "RUN_EXIT=!ERRORLEVEL!"
+goto :run_maestro_isolated_done
+
+:run_maestro_isolated_reinstall
+if /I "%ATP_MAESTRO_JAVA_DIRECT%"=="1" (
+  if exist "%JAVA_EXE%" if exist "%MAESTRO_APP_HOME%\lib" (
+    call :run_maestro_java_direct_reinstall
+    goto :run_maestro_isolated_done
+  )
+  echo [WARN] ATP_MAESTRO_JAVA_DIRECT=1 but java/lib missing; falling back to MAESTRO_BIN>> "%LOG_FILE%"
+)
+call :log_maestro_command_header
+if defined ATP_MAESTRO_DRIVER_PORT if defined ATP_MAESTRO_DEBUG_OUTPUT (
+  "%MAESTRO_BIN%" --driver-host-port %ATP_MAESTRO_DRIVER_PORT% --debug-output "!ATP_MAESTRO_DEBUG_OUTPUT!" --device "%DEVICE_ID%" test --reinstall-driver "%FLOW_PATH%" !INCLUDE_TAG_ARG! >> "%LOG_FILE%" 2>&1
+) else if defined ATP_MAESTRO_DRIVER_PORT (
+  "%MAESTRO_BIN%" --driver-host-port %ATP_MAESTRO_DRIVER_PORT% --device "%DEVICE_ID%" test --reinstall-driver "%FLOW_PATH%" !INCLUDE_TAG_ARG! >> "%LOG_FILE%" 2>&1
+) else if defined ATP_MAESTRO_DEBUG_OUTPUT (
+  "%MAESTRO_BIN%" --debug-output "!ATP_MAESTRO_DEBUG_OUTPUT!" --device "%DEVICE_ID%" test --reinstall-driver "%FLOW_PATH%" !INCLUDE_TAG_ARG! >> "%LOG_FILE%" 2>&1
+) else (
+  "%MAESTRO_BIN%" --device "%DEVICE_ID%" test --reinstall-driver "%FLOW_PATH%" !INCLUDE_TAG_ARG! >> "%LOG_FILE%" 2>&1
+)
+set "RUN_EXIT=!ERRORLEVEL!"
+goto :run_maestro_isolated_done
+
+:run_maestro_isolated_default
+if /I "%ATP_MAESTRO_JAVA_DIRECT%"=="1" (
+  if exist "%JAVA_EXE%" if exist "%MAESTRO_APP_HOME%\lib" (
+    call :run_maestro_java_direct_default
+    goto :run_maestro_isolated_done
+  )
+  echo [WARN] ATP_MAESTRO_JAVA_DIRECT=1 but java/lib missing; falling back to MAESTRO_BIN>> "%LOG_FILE%"
+)
+call :log_maestro_command_header
+if defined ATP_MAESTRO_DRIVER_PORT if defined ATP_MAESTRO_DEBUG_OUTPUT (
+  "%MAESTRO_BIN%" --driver-host-port %ATP_MAESTRO_DRIVER_PORT% --debug-output "!ATP_MAESTRO_DEBUG_OUTPUT!" --device "%DEVICE_ID%" test "%FLOW_PATH%" !INCLUDE_TAG_ARG! >> "%LOG_FILE%" 2>&1
+) else if defined ATP_MAESTRO_DRIVER_PORT (
+  "%MAESTRO_BIN%" --driver-host-port %ATP_MAESTRO_DRIVER_PORT% --device "%DEVICE_ID%" test "%FLOW_PATH%" !INCLUDE_TAG_ARG! >> "%LOG_FILE%" 2>&1
+) else if defined ATP_MAESTRO_DEBUG_OUTPUT (
+  "%MAESTRO_BIN%" --debug-output "!ATP_MAESTRO_DEBUG_OUTPUT!" --device "%DEVICE_ID%" test "%FLOW_PATH%" !INCLUDE_TAG_ARG! >> "%LOG_FILE%" 2>&1
+) else (
+  "%MAESTRO_BIN%" --device "%DEVICE_ID%" test "%FLOW_PATH%" !INCLUDE_TAG_ARG! >> "%LOG_FILE%" 2>&1
+)
+set "RUN_EXIT=!ERRORLEVEL!"
+goto :run_maestro_isolated_done
+
+:log_maestro_command_header
+echo Command: "%MAESTRO_BIN%" --device "%DEVICE_ID%" test "%FLOW_PATH%" !INCLUDE_TAG_ARG!>> "%LOG_FILE%"
+exit /b 0
+
+:run_maestro_java_direct_default
+call :run_maestro_java_direct_setup
+echo Command: "%JAVA_EXE%" !JVM_USER_HOME_OPT! -classpath "!MAESTRO_CLASSPATH!" maestro.cli.AppKt --device "%DEVICE_ID%" test "%FLOW_PATH%" !INCLUDE_TAG_ARG!>> "%LOG_FILE%"
+if defined ATP_MAESTRO_DRIVER_PORT if defined ATP_MAESTRO_DEBUG_OUTPUT (
+  "%JAVA_EXE%" !JVM_USER_HOME_OPT! -classpath "!MAESTRO_CLASSPATH!" maestro.cli.AppKt --driver-host-port %ATP_MAESTRO_DRIVER_PORT% --debug-output "!ATP_MAESTRO_DEBUG_OUTPUT!" --device "%DEVICE_ID%" test "%FLOW_PATH%" !INCLUDE_TAG_ARG! >> "%LOG_FILE%" 2>&1
+) else if defined ATP_MAESTRO_DRIVER_PORT (
+  "%JAVA_EXE%" !JVM_USER_HOME_OPT! -classpath "!MAESTRO_CLASSPATH!" maestro.cli.AppKt --driver-host-port %ATP_MAESTRO_DRIVER_PORT% --device "%DEVICE_ID%" test "%FLOW_PATH%" !INCLUDE_TAG_ARG! >> "%LOG_FILE%" 2>&1
+) else if defined ATP_MAESTRO_DEBUG_OUTPUT (
+  "%JAVA_EXE%" !JVM_USER_HOME_OPT! -classpath "!MAESTRO_CLASSPATH!" maestro.cli.AppKt --debug-output "!ATP_MAESTRO_DEBUG_OUTPUT!" --device "%DEVICE_ID%" test "%FLOW_PATH%" !INCLUDE_TAG_ARG! >> "%LOG_FILE%" 2>&1
+) else (
+  "%JAVA_EXE%" !JVM_USER_HOME_OPT! -classpath "!MAESTRO_CLASSPATH!" maestro.cli.AppKt --device "%DEVICE_ID%" test "%FLOW_PATH%" !INCLUDE_TAG_ARG! >> "%LOG_FILE%" 2>&1
+)
+set "RUN_EXIT=!ERRORLEVEL!"
+exit /b 0
+
+:run_maestro_java_direct_reinstall
+call :run_maestro_java_direct_setup
+if defined ATP_MAESTRO_DRIVER_PORT (
+  "%JAVA_EXE%" !JVM_USER_HOME_OPT! -classpath "!MAESTRO_CLASSPATH!" maestro.cli.AppKt --driver-host-port %ATP_MAESTRO_DRIVER_PORT% --device "%DEVICE_ID%" test --reinstall-driver "%FLOW_PATH%" !INCLUDE_TAG_ARG! >> "%LOG_FILE%" 2>&1
+) else (
+  "%JAVA_EXE%" !JVM_USER_HOME_OPT! -classpath "!MAESTRO_CLASSPATH!" maestro.cli.AppKt --device "%DEVICE_ID%" test --reinstall-driver "%FLOW_PATH%" !INCLUDE_TAG_ARG! >> "%LOG_FILE%" 2>&1
+)
+set "RUN_EXIT=!ERRORLEVEL!"
+exit /b 0
+
+:run_maestro_java_direct_flow1b
+call :run_maestro_java_direct_setup
+if defined ATP_MAESTRO_DRIVER_PORT (
+  "%JAVA_EXE%" !JVM_USER_HOME_OPT! -classpath "!MAESTRO_CLASSPATH!" maestro.cli.AppKt --driver-host-port %ATP_MAESTRO_DRIVER_PORT% --device "%DEVICE_ID%" test -e FULL_NAME=!FULL_NAME! -e EMAIL=!EMAIL! -e PASSWORD=!PASSWORD! "%FLOW_PATH%" !INCLUDE_TAG_ARG! >> "%LOG_FILE%" 2>&1
+) else (
+  "%JAVA_EXE%" !JVM_USER_HOME_OPT! -classpath "!MAESTRO_CLASSPATH!" maestro.cli.AppKt --device "%DEVICE_ID%" test -e FULL_NAME=!FULL_NAME! -e EMAIL=!EMAIL! -e PASSWORD=!PASSWORD! "%FLOW_PATH%" !INCLUDE_TAG_ARG! >> "%LOG_FILE%" 2>&1
+)
+set "RUN_EXIT=!ERRORLEVEL!"
+exit /b 0
+
+:run_maestro_java_direct_setup
+set "JVM_USER_HOME_OPT="
+if defined ATP_MAESTRO_RUNTIME_ROOT set "JVM_USER_HOME_OPT=-Duser.home="!ATP_MAESTRO_RUNTIME_ROOT!""
+REM Do not expand raw %MAESTRO_OPTS% here (unquoted -D paths split at spaces in cmd.exe).
+exit /b 0
+
 :run_maestro_isolated_done
 exit /b
 
@@ -55,19 +157,25 @@ REM %5 = CLEAR_STATE
 REM %6 = MAESTRO_CMD
 REM %7 = INCLUDE_TAG (optional)
 
-set "SUITE=%~1"
-set "FLOW_PATH=%~2"
+set "SUITE_NAME=%~1"
+set "FLOW_FILE=%~2"
 set "DEVICE_ID=%~3"
 set "APP_ID=%~4"
 set "CLEAR_STATE=%~5"
-set "MAESTRO_CMD=%~6"
-set "INCLUDE_TAG=%~7"
+set "MAESTRO_BAT=%~6"
+set "EXTRA_ARGS=%~7"
 
-if "%SUITE%"=="" exit /b 10
-if "%FLOW_PATH%"=="" exit /b 11
+set "SUITE=%SUITE_NAME%"
+set "FLOW_PATH=%FLOW_FILE%"
+set "MAESTRO_CMD=%MAESTRO_BAT%"
+set "INCLUDE_TAG=%EXTRA_ARGS%"
+
+if "%SUITE_NAME%"=="" exit /b 10
+if "%FLOW_FILE%"=="" exit /b 11
 if "%DEVICE_ID%"=="" exit /b 12
 if "%APP_ID%"=="" exit /b 13
-if "%MAESTRO_CMD%"=="" set "MAESTRO_CMD=maestro"
+if "%MAESTRO_BAT%"=="" set "MAESTRO_BAT=maestro"
+if "%MAESTRO_CMD%"=="" set "MAESTRO_CMD=%MAESTRO_BAT%"
 if "%INCLUDE_TAG%"=="__EMPTY__" set "INCLUDE_TAG="
 if "%AUTOFILL_RESTORE_AFTER_TEST%"=="" set "AUTOFILL_RESTORE_AFTER_TEST=0"
 set "ORIG_AUTOFILL_SERVICE=unknown"
@@ -80,7 +188,14 @@ set "JDK_JAVA_OPTIONS="
 set "REPO_ROOT=%~dp0.."
 for %%I in ("%REPO_ROOT%") do set "REPO_ROOT=%%~fI"
 
-call "%REPO_ROOT%\scripts\set_maestro_java.bat" "%MAESTRO_CMD%"
+echo [ATP-BAT] REPO_ROOT="%REPO_ROOT%"
+echo [ATP-BAT] SUITE_NAME="%SUITE_NAME%"
+echo [ATP-BAT] FLOW_FILE="%FLOW_FILE%"
+echo [ATP-BAT] DEVICE_ID="%DEVICE_ID%"
+echo [ATP-BAT] MAESTRO_BAT="%MAESTRO_BAT%"
+echo [ATP-BAT] CURRENT_DIR="%CD%"
+
+call "%REPO_ROOT%\scripts\set_maestro_java.bat" "%MAESTRO_BAT%"
 if errorlevel 1 exit /b 14
 
 if exist "%MAESTRO_HOME%\maestro.bat" (
@@ -88,7 +203,7 @@ if exist "%MAESTRO_HOME%\maestro.bat" (
 ) else if exist "%MAESTRO_HOME%\maestro.cmd" (
     set "MAESTRO_BIN=%MAESTRO_HOME%\maestro.cmd"
 ) else (
-    set "MAESTRO_BIN=%MAESTRO_CMD%"
+    set "MAESTRO_BIN=%MAESTRO_BAT%"
 )
 
 REM Maestro app root (parent of bin/) — used for direct java launch (no maestro.bat wrapper).
@@ -251,8 +366,7 @@ echo === flow1b signup ^(runtime^) ===>> "%LOG_FILE%"
 echo [flow1b] EMAIL=!EMAIL!>> "%LOG_FILE%"
 if defined SIGNUP_RUN_ID echo KODAK_SIGNUP_RUN_ID=!SIGNUP_RUN_ID!>> "%LOG_FILE%"
 
-set "MAESTRO_ARGS=--device "%DEVICE_ID%" test -e FULL_NAME=!FULL_NAME! -e EMAIL=!EMAIL! -e PASSWORD=!PASSWORD! "%FLOW_PATH%""
-if not "%INCLUDE_TAG%"=="" set "MAESTRO_ARGS=!MAESTRO_ARGS! --include-tags "%INCLUDE_TAG%""
+set "MAESTRO_MODE=flow1b"
 rem config.yaml: Maestro loads workspace config from the current directory (REPO); run from repo root
 
 for /f %%t in ('python -c "import time; print(int(time.time()*1000))" 2^>nul') do set "FLOW_START_MS=%%t"
@@ -287,8 +401,7 @@ echo [flow1b] EMAIL retry: !EMAIL!>> "%LOG_FILE%"
 if defined SIGNUP_RUN_ID echo KODAK_SIGNUP_RUN_ID retry: !SIGNUP_RUN_ID!>> "%LOG_FILE%"
 echo.>> "%LOG_FILE%"
 echo === Maestro retry (flow1b) ===>> "%LOG_FILE%"
-set "MAESTRO_ARGS=--device "%DEVICE_ID%" test -e FULL_NAME=!FULL_NAME! -e EMAIL=!EMAIL! -e PASSWORD=!PASSWORD! "%FLOW_PATH%""
-if not "%INCLUDE_TAG%"=="" set "MAESTRO_ARGS=!MAESTRO_ARGS! --include-tags "%INCLUDE_TAG%""
+set "MAESTRO_MODE=flow1b"
 call :run_maestro_isolated
 set "RUN_EXIT=%ERRORLEVEL%"
 if "!RUN_EXIT!"=="0" (
@@ -312,11 +425,9 @@ if errorlevel 1 (
 echo [INFO] Bluetooth disable attempted for TC_ON_E02>> "%LOG_FILE%"
 :skip_bt_off_for_on_e02
 
-set "MAESTRO_ARGS=--device "%DEVICE_ID%" test "%FLOW_PATH%""
-if not "%INCLUDE_TAG%"=="" set "MAESTRO_ARGS=!MAESTRO_ARGS! --include-tags "%INCLUDE_TAG%""
+set "MAESTRO_MODE=default"
 
 echo Starting Maestro test...>> "%LOG_FILE%"
-echo Command: "%MAESTRO_BIN%" !MAESTRO_ARGS!>> "%LOG_FILE%"
 echo. >> "%LOG_FILE%"
 
 REM ---- Default flows: require device online immediately before Maestro; one rerun if ADB drops mid-run (Jenkins logs: device not found / transport) ----
@@ -360,8 +471,7 @@ findstr /i /c:"Connection refused" "%LOG_FILE%" >nul 2>&1
 if errorlevel 1 goto :skip_maestro_driver_7001_retry
 echo [WARN] Maestro Android driver handshake failed ^(e.g. localhost:7001 Connection refused^). Retrying once with test --reinstall-driver...>> "%LOG_FILE%"
 set "MAESTRO_DRIVER_7001_RETRY=1"
-set "MAESTRO_ARGS=--device "%DEVICE_ID%" test --reinstall-driver "%FLOW_PATH%""
-if not "%INCLUDE_TAG%"=="" set "MAESTRO_ARGS=!MAESTRO_ARGS! --include-tags "%INCLUDE_TAG%""
+set "MAESTRO_MODE=reinstall_driver"
 call :sleep_seconds 3
 goto :maestro_default_attempt
 :skip_maestro_driver_7001_retry
