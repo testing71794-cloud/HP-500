@@ -614,6 +614,11 @@ def run_run_one_flow_device_bat(
         maestro_launcher=maestro_launcher,
         include_tag=include_tag,
     )
+    if cmd and Path(cmd[0]).name.lower() in ("cmd.exe", "cmd"):
+        raise RuntimeError(
+            "run_one_flow_on_device must be invoked as a direct .bat argv list, not via cmd.exe /c "
+            f"(got subprocess_safe_args={cmd!r})"
+        )
     log_lifecycle(
         repo,
         suite_id,
