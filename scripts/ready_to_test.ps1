@@ -6,7 +6,7 @@
 
 param(
     [switch] $WithDeviceSmoke,
-    [string] $AppPackage = "com.kodaksmile",
+    [string] $AppPackage = "com.hp.impulse.panorama",
     [string] $MaestroCmd = "maestro.bat",
     [string] $SmokeFlow = "Non printing flows\flow1.yaml"
 )

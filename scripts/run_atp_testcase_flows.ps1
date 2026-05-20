@@ -271,8 +271,14 @@ if ($singleFolderMode) {
     }
 }
 
+$resolvePy = Join-Path $RepoRoot "scripts\atp_app_package.py"
+if (Test-Path -LiteralPath $resolvePy) {
+    $resolveArgs = if ([string]::IsNullOrWhiteSpace($AppId)) { @() } else { @($AppId.Trim()) }
+    $AppId = (& python $resolvePy @resolveArgs 2>$null | Select-Object -Last 1).ToString().Trim()
+    Write-Host "[ATP] resolved_app_id=$AppId"
+}
 if ([string]::IsNullOrWhiteSpace($AppId)) {
-    Write-Host "ERROR: AppId required"
+    Write-Host "ERROR: AppId required (or set APP_PACKAGE / ATP_APP_PACKAGE)"
     exit 1
 }
 if ([string]::IsNullOrWhiteSpace($ClearState)) { $ClearState = "true" }

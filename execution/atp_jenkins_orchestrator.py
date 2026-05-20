@@ -53,9 +53,13 @@ from .maestro_runner import (
 from .flow_timing import read_status_fields
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
+_SCRIPTS = _REPO_ROOT / "scripts"
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
+if str(_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS))
 
+from atp_app_package import log_resolved_app_package, resolve_app_package  # noqa: E402
 from utils.device_utils import get_device_display_name  # noqa: E402
 from utils.git_branch import detect_git_branch, write_git_branch_file  # noqa: E402
 
@@ -719,6 +723,10 @@ def run_atp_folder_blocking(
     maestro_cmd: str,
 ) -> int:
     repo = repo.resolve()
+    app_id = resolve_app_package(app_id)
+    os.environ["APP_PACKAGE"] = app_id
+    os.environ["ATP_APP_PACKAGE"] = app_id
+    log_resolved_app_package(app_id, prefix="[ATP]")
     single_folder_mode = bool((atp_subfolder or "").strip())
     atp_root = repo / "ATP TestCase Flows"
 
@@ -741,9 +749,6 @@ def run_atp_folder_blocking(
             print("[ATP] SKIP: no .yaml/.yml files under ATP TestCase Flows", flush=True)
         return 0
 
-    if not (app_id or "").strip():
-        print("ERROR: AppId required", flush=True)
-        return 1
     clear_state = (clear_state or "true").strip()
 
     add_adb_from_env_to_path()

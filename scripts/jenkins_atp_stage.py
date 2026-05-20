@@ -20,10 +20,19 @@ if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
+from atp_app_package import log_resolved_app_package, resolve_app_package
 from atp_folder_resolve import resolve_atp_subfolder
 from utils.subprocess_windows import build_cmd_exe_c, execute_command  # noqa: E402
 
 ORCHESTRATOR_MODULE = "execution.atp_jenkins_orchestrator"
+
+
+def _resolve_app_for_atp(requested: str) -> str:
+    resolved = resolve_app_package(requested)
+    os.environ["APP_PACKAGE"] = resolved
+    os.environ["ATP_APP_PACKAGE"] = resolved
+    log_resolved_app_package(resolved, prefix="[ATP]", source=requested or "env")
+    return resolved
 
 
 def folder_to_suite_id(folder: str) -> str:
@@ -88,6 +97,7 @@ def _resolve_folder_for_run(folder: str) -> tuple[str, str]:
 def cmd_run(folder: str, app: str, clear_state: str, maestro_cmd: str) -> int:
     logical, disk = _resolve_folder_for_run(folder)
     sid = folder_to_suite_id(logical)
+    app_resolved = _resolve_app_for_atp(app)
     _refresh_devices_on_this_agent(REPO)
     _log_orchestrator_fingerprint(REPO)
     # Stack A: blocking Python orchestrator (no detached PowerShell Start-Process chain).
@@ -97,7 +107,7 @@ def cmd_run(folder: str, app: str, clear_state: str, maestro_cmd: str) -> int:
             "-m",
             ORCHESTRATOR_MODULE,
             str(REPO),
-            app,
+            app_resolved,
             clear_state,
             maestro_cmd,
             disk,

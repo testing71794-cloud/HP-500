@@ -634,6 +634,7 @@ def run_run_one_flow_device_bat(
     port_plan = iso.get("driver_port_plan", planned_driver_port(launch_index))
     print(
         f"[ATP] maestro_subprocess_launch device={_dev_log(device_id)} flow={flow_path.stem} "
+        f"resolved_app_id={app_id} "
         f"ts={time.time():.3f} orchestrator_parent_pid={os.getpid()} launch_index={launch_index} "
         f"driver_port_plan={port_plan} driver_port_cli={iso.get('driver_port')} "
         f"maestro_mode={'native_parallel' if native_parallel else 'legacy_compatible'} "

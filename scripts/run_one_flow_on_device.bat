@@ -187,6 +187,8 @@ set "INCLUDE_TAG=%EXTRA_ARGS%"
 if "%SUITE_NAME%"=="" exit /b 10
 if "%FLOW_FILE%"=="" exit /b 11
 if "%DEVICE_ID%"=="" exit /b 12
+if "%APP_ID%"=="" set "APP_ID=com.hp.impulse.panorama"
+if /I "%APP_ID%"=="com.kodaksmile" set "APP_ID=com.hp.impulse.panorama"
 if "%APP_ID%"=="" exit /b 13
 if "%MAESTRO_BAT%"=="" set "MAESTRO_BAT=maestro"
 if "%MAESTRO_CMD%"=="" set "MAESTRO_CMD=%MAESTRO_BAT%"
@@ -216,6 +218,7 @@ echo [ATP-BAT] SUITE_NAME="%SUITE_NAME%"
 echo [ATP-BAT] FLOW_FILE="%FLOW_FILE%"
 echo [ATP-BAT] DEVICE_ID="%DEVICE_ID%"
 echo [ATP-BAT] MAESTRO_BAT="%MAESTRO_BAT%"
+echo [ATP-BAT] resolved_app_id="%APP_ID%"
 echo [ATP-BAT] CURRENT_DIR="%CD%"
 
 call "%REPO_ROOT%\scripts\set_maestro_java.bat" "%MAESTRO_BAT%"
